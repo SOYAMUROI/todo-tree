@@ -139,6 +139,10 @@ body:not([data-mode=tree]) #vp{display:none}
 .port.p-tr{right:var(--o);top:var(--o)}
 .port.p-bl{left:var(--o);bottom:var(--o)}
 .port.p-br{right:var(--o);bottom:var(--o)}
+.port.p-l{left:var(--o);top:50%;margin-top:calc(var(--s) / -2)}
+.port.p-r{right:var(--o);top:50%;margin-top:calc(var(--s) / -2)}
+.ehandle{fill:var(--sel);stroke:var(--bg);stroke-width:2;pointer-events:all;cursor:grab}
+.ehandle:hover{fill:var(--text)}
 .port:not(.p-b){opacity:0;pointer-events:none}
 .node:hover .port,.node.selected .port,#vp.linking .port{opacity:1;pointer-events:auto}
 #world.outline .port.p-b{left:20px}
@@ -315,7 +319,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
 </style>
 </head>
 <body data-mode="tree">
-<div id="vp"><div id="world"><svg id="edges"></svg><div id="nodes"></div></div></div>
+<div id="vp"><div id="world"><svg id="edges"></svg><div id="nodes"></div><svg id="ehandles"></svg></div></div>
 <div class="vignette"></div>
 
 <header id="hdr">
@@ -421,7 +425,8 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   空白をダブルクリック（スマホはダブルタップ）… タスク追加<br>
   ノードをダブルクリック / <kbd>Enter</kbd> … 名前を編集<br>
   左の ○ … 未着手 → 進行中 → 完了<br>
-  まわりの ●（上下・四隅）をドラッグ … 他ノードへ接続（空白で離すと子タスク）<br>
+  まわりの ●（上下左右・四隅）をドラッグ … 他ノードへ接続（空白で離すと子タスク）<br>
+  線をクリック → 両端のピンクの ● をドラッグ … つなぐ位置を変更<br>
   一覧の ⋮⋮ をドラッグ … 順番の入れ替え（右にずらすと子タスクに）<br>
   ノードを選択 → 下のバーで状態・子追加・詳細・削除<br>
   <kbd>Tab</kbd> 子追加　<kbd>Space</kbd> 状態　<kbd>Del</kbd> 削除　<kbd>D</kbd> 詳細<br>
@@ -439,14 +444,14 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
 const KEY = 'todo-tree-v1';
 const STATUS = ['todo', 'doing', 'done'];
 const LABEL = { todo: '未着手', doing: '進行中', done: '完了' };
-// connection points around a node: top, bottom and the four corners
-const PORTS = ['t', 'b', 'tl', 'tr', 'bl', 'br'];
-const PORT_N = { t: [0, -1], b: [0, 1], tl: [-.7, -.7], tr: [.7, -.7], bl: [-.7, .7], br: [.7, .7] };
-const OPP = { t: 'b', b: 't', tl: 'br', tr: 'bl', bl: 'tr', br: 'tl' };
+// connection points around a node: four sides and four corners
+const PORTS = ['t', 'b', 'l', 'r', 'tl', 'tr', 'bl', 'br'];
+const PORT_N = { t: [0, -1], b: [0, 1], l: [-1, 0], r: [1, 0], tl: [-.7, -.7], tr: [.7, -.7], bl: [-.7, .7], br: [.7, .7] };
+const OPP = { t: 'b', b: 't', l: 'r', r: 'l', tl: 'br', tr: 'bl', bl: 'tr', br: 'tl' };
 const PRI = ['high', 'mid', 'low'], PRI_LABEL = { high: '高', mid: '中', low: '低' }, PRI_RANK = { high: 0, mid: 1, low: 2, '': 3 };
 const DEPTH = 0, DAY = 864e5, DATE = /^\d{4}-\d{2}-\d{2}$/;
 const $ = id => document.getElementById(id);
-const vp = $('vp'), world = $('world'), svg = $('edges'), nodesEl = $('nodes');
+const vp = $('vp'), world = $('world'), svg = $('edges'), hsvg = $('ehandles'), nodesEl = $('nodes');
 const gscroll = $('gscroll'), gwrap = $('gwrap'), sheet = $('sheet');
 const NS = 'http://www.w3.org/2000/svg';
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -688,7 +693,8 @@ function anchorOut(a) {
 function portPos(n, p) {
   const { x, y } = n, w = n._w, h = n._h;
   if (p === 'b') return S.layout === 'outline' ? { x: x + 20, y: y + h + DEPTH } : { x: x + w / 2, y: y + h + DEPTH };
-  return { t: { x: x + w / 2, y }, tl: { x, y }, tr: { x: x + w, y }, bl: { x, y: y + h }, br: { x: x + w, y: y + h } }[p];
+  return { t: { x: x + w / 2, y }, l: { x, y: y + h / 2 }, r: { x: x + w, y: y + h / 2 },
+    tl: { x, y }, tr: { x: x + w, y }, bl: { x, y: y + h }, br: { x: x + w, y: y + h } }[p];
 }
 const nearestPort = (n, pt) => PORTS.reduce((best, p) => {
   const q = portPos(n, p), d = Math.hypot(q.x - pt.x, q.y - pt.y);
@@ -707,18 +713,18 @@ function curve(s, tx, ty) {
 function edgePath(a, b, e) {
   if (e && e.fp) {
     const s = portPos(a, e.fp), t = portPos(b, e.tp);
-    return { d: portCurve(s, PORT_N[e.fp], t, PORT_N[e.tp]), tx: t.x, ty: t.y };
+    return { d: portCurve(s, PORT_N[e.fp], t, PORT_N[e.tp]), sx: s.x, sy: s.y, tx: t.x, ty: t.y };
   }
   const s = anchorOut(a);
   if (S.layout === 'outline') {
     const tx = b.x, ty = b.y + b._h / 2;
     if (tx > s.x + 8 && ty > s.y + 8) {
       const r = Math.min(14, tx - s.x, ty - s.y);
-      return { d: `M${s.x},${s.y} L${s.x},${ty - r} Q${s.x},${ty} ${s.x + r},${ty} L${tx},${ty}`, tx, ty };
+      return { d: `M${s.x},${s.y} L${s.x},${ty - r} Q${s.x},${ty} ${s.x + r},${ty} L${tx},${ty}`, sx: s.x, sy: s.y, tx, ty };
     }
   }
   const tx = b.x + b._w / 2, ty = b.y;
-  return { d: curve(s, tx, ty), tx, ty };
+  return { d: curve(s, tx, ty), sx: s.x, sy: s.y, tx, ty };
 }
 function mk(tag, attrs) {
   const e = document.createElementNS(NS, tag);
@@ -727,11 +733,22 @@ function mk(tag, attrs) {
 }
 function renderEdges() {
   svg.textContent = '';
+  hsvg.textContent = '';
+  let handles = null;
   for (const e of S.edges) {
     const a = byId[e.from], b = byId[e.to];
     if (!a || !b || a._w == null || b._w == null) continue;
+    if (drag && drag.mode === 'rewire' && drag.eid === e.id) {
+      // the end being moved follows the pointer; the other end stays put
+      const d = drag.end === 'to'
+        ? portCurve(portPos(a, e.fp || 'b'), PORT_N[e.fp || 'b'], drag.cur, null)
+        : portCurve(portPos(b, e.tp || 't'), PORT_N[e.tp || 't'], drag.cur, null);
+      svg.append(mk('path', { d, class: 'temp' }));
+      continue;
+    }
     const p = edgePath(a, b, e);
-    const cls = (b.status === 'done' ? ' done' : '') + (sel && sel.type === 'edge' && sel.id === e.id ? ' sel' : '');
+    const isSel = sel && sel.type === 'edge' && sel.id === e.id;
+    const cls = (b.status === 'done' ? ' done' : '') + (isSel ? ' sel' : '');
     svg.append(
       mk('path', { d: p.d, class: 'edge glow' + cls }),
       mk('path', { d: p.d, class: 'edge' + cls }),
@@ -739,7 +756,13 @@ function renderEdges() {
       mk('circle', { cx: p.tx, cy: p.ty, r: 3.5, class: 'end' + (b.status === 'done' ? ' done' : '') }),
       mk('path', { d: p.d, class: 'hit', 'data-edge': e.id })
     );
+    if (isSel && !drag) handles = p;
   }
+  // handles sit above the nodes so they win over the node's own ports
+  if (handles) hsvg.append(
+    mk('circle', { cx: handles.sx, cy: handles.sy, r: 9, class: 'ehandle', 'data-end': 'from' }),
+    mk('circle', { cx: handles.tx, cy: handles.ty, r: 9, class: 'ehandle', 'data-end': 'to' })
+  );
   if (drag && drag.mode === 'link' && drag.cur) {
     svg.append(mk('path', { d: portCurve(portPos(byId[drag.id], drag.port), PORT_N[drag.port], drag.cur, null), class: 'temp' }));
   }
@@ -956,6 +979,11 @@ vp.addEventListener('pointerdown', e => {
   if (editing) document.activeElement.blur();
   const nEl = t.closest('.node'), w = toWorld(e.clientX, e.clientY);
   if (t.classList.contains('chk') && nEl) { drag = { mode: 'none' }; cycle(nEl.dataset.id); return; }
+  if (t.classList.contains('ehandle') && sel && sel.type === 'edge') {
+    drag = { mode: 'rewire', eid: sel.id, end: t.dataset.end, cur: w };
+    vp.classList.add('linking'); renderEdges();
+    return;
+  }
   if (t.classList.contains('port') && nEl) {
     drag = { mode: 'link', id: nEl.dataset.id, port: t.dataset.port || 'b', cur: w };
     vp.classList.add('linking');
@@ -1016,11 +1044,11 @@ vp.addEventListener('pointermove', e => {
       it.el.style.left = it.n.x + 'px'; it.el.style.top = it.n.y + 'px';
     }
     renderEdges();
-  } else if (drag.mode === 'link') {
+  } else if (drag.mode === 'link' || drag.mode === 'rewire') {
     drag.cur = toWorld(e.clientX, e.clientY); renderEdges();
     const over = document.elementFromPoint(e.clientX, e.clientY)?.closest('.node');
     if (dropEl && dropEl !== over) dropEl.classList.remove('drop');
-    dropEl = over && over.dataset.id !== drag.id ? over : null;
+    dropEl = over && (drag.mode === 'rewire' || over.dataset.id !== drag.id) ? over : null;
     if (dropEl) dropEl.classList.add('drop');
   }
 });
@@ -1055,6 +1083,25 @@ function endPointer(e, cancelled) {
       if (sheetId && sheetId !== d.id) openSheet(d.id);
       if (e.pointerType !== 'mouse') tap(e, d.id);
     }
+  } else if (d.mode === 'rewire') {
+    if (dropEl) dropEl.classList.remove('drop');
+    const target = dropEl; dropEl = null;
+    const edge = S.edges.find(x => x.id === d.eid);
+    if (cancelled || !target || !edge) return renderEdges();
+    const w = toWorld(e.clientX, e.clientY), nid = target.dataset.id;
+    const over = document.elementFromPoint(e.clientX, e.clientY);
+    const port = over && over.classList.contains('port') && over.closest('.node') === target
+      ? over.dataset.port : nearestPort(byId[nid], w);
+    const other = d.end === 'from' ? edge.to : edge.from;
+    const dup = S.edges.some(x => x !== edge && ((x.from === nid && x.to === other) || (x.from === other && x.to === nid)));
+    if (nid === other || dup) return renderEdges();
+    snapshot();
+    const nodeChanged = (d.end === 'from' ? edge.from : edge.to) !== nid;
+    edge.fp = edge.fp || 'b'; edge.tp = edge.tp || 't';
+    if (d.end === 'from') { edge.from = nid; edge.fp = port; } else { edge.to = nid; edge.tp = port; }
+    if (edge.fp === 'b' && edge.tp === 't') { delete edge.fp; delete edge.tp; }
+    if (nodeChanged) relayoutIfOutline();
+    refresh(); save();
   } else if (d.mode === 'link') {
     if (dropEl) dropEl.classList.remove('drop');
     const target = dropEl; dropEl = null;
@@ -1070,7 +1117,7 @@ function endPointer(e, cancelled) {
       if (Math.hypot(w.x - s.x, w.y - s.y) > 30) {
         // place the new task so its facing port lands where the line was dropped
         const tp = OPP[d.port], W = 130, H = 38;
-        const off = { t: [-W / 2, 0], b: [-W / 2, -H], tl: [0, 0], tr: [-W, 0], bl: [0, -H], br: [-W, -H] }[tp];
+        const off = { t: [-W / 2, 0], b: [-W / 2, -H], l: [0, -H / 2], r: [-W, -H / 2], tl: [0, 0], tr: [-W, 0], bl: [0, -H], br: [-W, -H] }[tp];
         addNode(Math.round(w.x + off[0]), Math.round(w.y + off[1]), d.id, d.port === 'b' ? null : { fp: d.port, tp });
       } else renderEdges();
     }
