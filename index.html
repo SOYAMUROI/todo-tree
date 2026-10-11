@@ -62,8 +62,9 @@ button.t.warn{border-color:rgba(248,113,113,.7);color:#fecaca}
 .legend span{display:inline-flex;align-items:center;gap:5px}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block;box-shadow:0 0 6px currentColor}
 body:not([data-mode=tree]) .tree-only{display:none}
-/* folded toolbar: only add + the toggle stay */
-.tools.folded button:not(#bAdd):not(#bMore){display:none}
+/* the whole toolbar row folds away */
+.row2.folded{display:none}
+button.t.more{padding:4px 9px}
 
 .viewnav{display:inline-flex;margin-left:auto;padding:3px;border-radius:9px;background:rgba(0,0,0,.3);
   border:1px solid rgba(58,168,255,.3)}
@@ -312,6 +313,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   h1{font-size:17px;max-width:none}
   .stats{font-size:11px;gap:6px}
   .meter{display:none}
+  button.t.more span{display:none}
   .row2{margin-top:8px}
   .tools{flex-wrap:nowrap;overflow-x:auto;width:100%;scrollbar-width:none;padding-bottom:2px}
   .tools::-webkit-scrollbar{display:none}
@@ -345,17 +347,16 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
       <div class="eyebrow">TASK ARCHITECTURE</div>
       <h1 id="title" title="クリックして名前を変更">TODO Tree</h1>
     </div>
-    <div class="stats"><span id="statText">0 / 0</span><span class="meter"><i id="meter"></i></span><button class="sync" id="sync" data-s="off" title="同期の設定">この端末のみ</button></div>
+    <div class="stats"><span id="statText">0 / 0</span><span class="meter"><i id="meter"></i></span><button class="sync" id="sync" data-s="off" title="同期の設定">この端末のみ</button><button class="t more" id="bMore" aria-expanded="false" title="ツールバーを開く / 閉じる"><span>ツール</span> ▾</button></div>
     <nav class="viewnav" id="viewnav">
       <button data-m="tree"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-4h12v4"/></svg><span>ツリー</span></button>
       <button data-m="list"><svg viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg><span>一覧</span></button>
       <button data-m="gantt"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="6" y="6" width="8" height="3" rx="1"/><rect x="10" y="11" width="9" height="3" rx="1"/><rect x="7" y="16" width="6" height="2.5" rx="1"/></svg><span>ガント</span></button>
     </nav>
   </div>
-  <div class="row2">
-    <div class="tools folded">
+  <div class="row2 folded" id="row2">
+    <div class="tools">
       <button class="t primary" id="bAdd">＋ タスク</button>
-      <button class="t" id="bMore" aria-expanded="false" title="ツールを開く / 閉じる">ツール ▾</button>
       <button class="t tree-only" id="bLayout" title="ツリー状に整列">ツリー</button>
       <button class="t tree-only" id="bOutline" title="縦並びに整列">縦並び</button>
       <button class="t tree-only" id="bSaveManual" title="今のボックスの位置を保存">保存</button>
@@ -449,7 +450,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   まわりの ●（上下左右・四隅）をドラッグ … 他ノードへ接続（空白で離すと子タスク）<br>
   線をクリック → 両端のピンクの ● をドラッグ … つなぐ位置を変更<br>
   一覧の ⋮⋮ をドラッグ … 順番の入れ替え（階層はそのまま）<br>
-  「ツール ▾」 … ボタンを開く / 閉じる<br>
+  右上の「ツール ▾」 … ツールバーの行を開く / 閉じる<br>
   「ツリー」「縦並び」 … 整列　「保存」 … 今のボックスの位置を保存　「手動」 … 保存した位置に戻す<br>
   ノードを選択 → 下のバーで状態・子追加・詳細・削除<br>
   <kbd>Tab</kbd> 子追加　<kbd>Space</kbd> 状態　<kbd>Del</kbd> 削除　<kbd>D</kbd> 詳細<br>
@@ -1634,8 +1635,8 @@ $('bSaveManual').onclick = saveManual;
 // the toolbar starts folded; whether it is open is remembered on this device only
 const TOOLS_KEY = 'todo-tree-tools-open';
 function setTools(open) {
-  $('bMore').closest('.tools').classList.toggle('folded', !open);
-  $('bMore').textContent = open ? 'ツール ▴' : 'ツール ▾';
+  $('row2').classList.toggle('folded', !open);
+  $('bMore').lastChild.textContent = open ? ' ▴' : ' ▾';
   $('bMore').setAttribute('aria-expanded', open);
   try { localStorage.setItem(TOOLS_KEY, open ? '1' : ''); } catch (e) {}
   if (S.mode === 'tree') applyView();
