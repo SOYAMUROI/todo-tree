@@ -18,6 +18,7 @@
   --line:#3aa8ff;--todo:#38bdf8;--doing:#fbbf24;--done:#34d399;--late:#fb7185;--sel:#f472b6;
   --text:#dbeafe;--muted:#7b93c4;--panel:rgba(6,18,44,.95);--hh:100px;--nav:0px;
   --p-high:#ff5d73;--p-mid:#c084fc;--p-low:#8fa3c4;
+  --lv0:#1f4aa8;--lv1:#0d6170;--lv2:#4a3488;--lv3:#6b4d14;--lv4:#33415a;
   color-scheme:dark;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -68,6 +69,11 @@ body:not([data-mode=tree]) .tree-only{display:none}
 .viewnav button.on{color:#fff;background:rgba(56,189,248,.22)}
 .viewnav svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
+/* ---------- hierarchy level ---------- */
+.lv0{--lvc:var(--lv0)} .lv1{--lvc:var(--lv1)} .lv2{--lvc:var(--lv2)} .lv3{--lvc:var(--lv3)} .lv4{--lvc:var(--lv4)}
+.lvsw{display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--lvc);border:1px solid rgba(255,255,255,.3);margin:0 3px 0 7px;vertical-align:-2px}
+.grow[class*=lv] .gname{box-shadow:inset 4px 0 0 var(--lvc)}
+
 /* ---------- priority ---------- */
 .pri{--pc:var(--p-low);display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 6px;
   border-radius:9px;font-size:10.5px;font-style:normal;font-weight:700;line-height:1;color:var(--bg);background:var(--pc);flex:none}
@@ -105,7 +111,7 @@ body:not([data-mode=tree]) #vp{display:none}
 @keyframes flow{to{stroke-dashoffset:-15}}
 
 .node{--c:var(--todo);position:absolute;width:max-content;min-width:120px;max-width:230px;
-  padding:8px 12px 9px 32px;border:1px solid var(--c);border-radius:6px;background:rgba(10,40,90,.85);
+  padding:8px 12px 9px 32px;border:1px solid var(--c);border-radius:6px;background:color-mix(in srgb,var(--lvc,#0a2850) 88%,transparent);
   font-size:13px;line-height:1.4;cursor:grab;user-select:none;-webkit-user-select:none;
   box-shadow:0 0 10px color-mix(in srgb,var(--c) 45%,transparent),inset 0 0 12px rgba(56,189,248,.12);
   transition:box-shadow .2s,border-color .2s}
@@ -172,7 +178,7 @@ body[data-mode=list] #listView,body[data-mode=gantt] #ganttView{display:flex}
 .lscroll{flex:1;overflow:auto;padding:14px 16px 28px}
 #listBody{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:9px}
 .lrow{--c:var(--todo);position:relative;display:flex;align-items:center;gap:12px;margin-left:calc(var(--d)*24px);
-  padding:10px 12px 10px 38px;border-radius:6px;cursor:pointer;background:rgba(10,40,90,.75);
+  padding:10px 12px 10px 38px;border-radius:6px;cursor:pointer;background:color-mix(in srgb,var(--lvc,#0a2850) 75%,transparent);
   border:1px solid rgba(58,168,255,.25);border-left:3px solid var(--c);transition:border-color .15s,box-shadow .15s}
 .lrow:hover{border-color:var(--c);box-shadow:0 0 12px color-mix(in srgb,var(--c) 35%,transparent)}
 .lrow.doing{--c:var(--doing)} .lrow.done{--c:var(--done)}
@@ -352,6 +358,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
       <span style="color:var(--doing)"><i class="dot" style="background:var(--doing)"></i><span style="color:var(--muted)">進行中</span></span>
       <span style="color:var(--done)"><i class="dot" style="background:var(--done)"></i><span style="color:var(--muted)">完了</span></span>
       <span>優先度 <i class="pri high">高</i><i class="pri mid">中</i><i class="pri low">低</i></span>
+      <span>階層<i class="lvsw lv0"></i>親<i class="lvsw lv1"></i>子<i class="lvsw lv2"></i>孫<i class="lvsw lv3"></i>ひ孫</span>
     </div>
   </div>
 </header>
@@ -434,6 +441,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   <kbd>Shift</kbd>+ドラッグ … 配下ごと移動<br>
   背景ドラッグ … 移動　ホイール / 2本指 … ズーム<br>
   <b>ガント</b>：詳細で開始日・終了日を入れると表示<br>
+  <b>色</b>：枠線＝状態、箱の塗り＝階層（親・子・孫・ひ孫）<br>
   <b>同期</b>：右上の「ログインして同期」から、PCとスマホで同じアカウントにログイン<br>
   <b>タイトル</b>：クリックで名前を変更　<kbd>Ctrl</kbd>+<kbd>Z</kbd> 元に戻す
 </div>
@@ -654,12 +662,14 @@ function updateSelection() {
 function syncHH() { document.documentElement.style.setProperty('--hh', $('hdr').offsetHeight + 'px'); }
 
 /* ---------- tree view ---------- */
+const lvClass = d => ' lv' + Math.min(d, 4);
 function renderTree() {
   index();
+  const level = Object.fromEntries(treeOrder().map(o => [o.n.id, o.d]));
   world.classList.toggle('outline', S.layout === 'outline');
   nodesEl.textContent = '';
   for (const n of S.nodes) {
-    const e = el('div', 'node ' + n.status + (hasParent(n.id) ? '' : ' root') + (n.priority ? ' p-' + n.priority : ''));
+    const e = el('div', 'node ' + n.status + (hasParent(n.id) ? '' : ' root') + (n.priority ? ' p-' + n.priority : '') + lvClass(level[n.id] || 0));
     e.dataset.id = n.id;
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
     const chk = el('button', 'chk'); chk.title = '状態を切り替え';
@@ -1173,13 +1183,14 @@ function renderList() {
   const body = $('listBody'); body.textContent = '';
   let shown = 0;
   const canDrag = listFilter === 'all' && listSort === 'tree';
+  const level = Object.fromEntries(order.map(o => [o.n.id, o.d]));
   const rows = listSort === 'pri'
     ? order.map(o => ({ ...o, d: 0 })).sort((a, b) => PRI_RANK[a.n.priority] - PRI_RANK[b.n.priority])
     : order;
   for (const { n, d } of rows) {
     if (listFilter !== 'all' && n.status !== listFilter) continue;
     shown++;
-    const row = el('div', 'lrow ' + n.status + (isLate(n) ? ' late' : '') + (hasParent(n.id) ? '' : ' root'));
+    const row = el('div', 'lrow ' + n.status + (isLate(n) ? ' late' : '') + (hasParent(n.id) ? '' : ' root') + lvClass(level[n.id] || 0));
     row.dataset.id = n.id;
     row.style.setProperty('--d', listFilter === 'all' ? Math.min(d, 8) : 0);
     const main = el('div', 'lmain'), meta = el('div', 'lmeta');
@@ -1320,7 +1331,7 @@ function renderGantt(scrollToday = false) {
   gwrap.append(bg);
 
   for (const { n, d } of order) {
-    const row = el('div', 'grow ' + n.status + (hasParent(n.id) ? '' : ' root'));
+    const row = el('div', 'grow ' + n.status + (hasParent(n.id) ? '' : ' root') + lvClass(d));
     row.dataset.id = n.id;
     const name = el('div', 'gname');
     name.style.paddingLeft = 8 + Math.min(d, 6) * (mobile ? 8 : 14) + 'px';
