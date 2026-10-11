@@ -55,6 +55,7 @@ h1[contenteditable=true]::after{content:none}
 .tools{display:flex;gap:6px;flex-wrap:wrap}
 button.t{font-size:12px;color:var(--text);background:rgba(30,80,160,.25);border:1px solid rgba(58,168,255,.35);border-radius:5px;padding:6px 10px;cursor:pointer;white-space:nowrap}
 button.t:hover{background:rgba(58,168,255,.25);border-color:var(--todo)}
+button.t:disabled{opacity:.4;cursor:default;background:rgba(30,80,160,.25);border-color:rgba(58,168,255,.35)}
 button.t.primary{background:rgba(56,189,248,.2);border-color:var(--todo)}
 button.t.warn{border-color:rgba(248,113,113,.7);color:#fecaca}
 .legend{display:flex;gap:14px;margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap}
@@ -346,6 +347,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
       <button class="t primary" id="bAdd">＋ タスク</button>
       <button class="t tree-only" id="bLayout">ツリー整列</button>
       <button class="t tree-only" id="bOutline">縦並び整列</button>
+      <button class="t tree-only" id="bManual" disabled>手動配列</button>
       <button class="t tree-only" id="bFit">全体表示</button>
       <button class="t" id="bUndo">元に戻す</button>
       <button class="t" id="bExport">書き出し</button>
@@ -435,6 +437,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   まわりの ●（上下左右・四隅）をドラッグ … 他ノードへ接続（空白で離すと子タスク）<br>
   線をクリック → 両端のピンクの ● をドラッグ … つなぐ位置を変更<br>
   一覧の ⋮⋮ をドラッグ … 順番の入れ替え（階層はそのまま）<br>
+  「手動配列」 … 整列ボタンを押す前の、自分で並べた位置に戻す<br>
   ノードを選択 → 下のバーで状態・子追加・詳細・削除<br>
   <kbd>Tab</kbd> 子追加　<kbd>Space</kbd> 状態　<kbd>Del</kbd> 削除　<kbd>D</kbd> 詳細<br>
   <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> … 優先度 高・中・低（<kbd>0</kbd> で解除）<br>
@@ -536,8 +539,15 @@ function normalize(s) {
     mode: ['tree', 'list', 'gantt'].includes(s.mode) ? s.mode : 'tree',
     layout: s.layout === 'outline' ? 'outline' : 'tree',
     free: !!s.free,
+    manual: normManual(s.manual),
     gscale: [32, 12, 4].includes(s.gscale) ? s.gscale : 32
   };
+}
+function normManual(m) {
+  if (!m || typeof m.pos !== 'object' || !m.pos) return null;
+  const pos = {};
+  for (const [id, p] of Object.entries(m.pos)) if (p && isFinite(p.x) && isFinite(p.y)) pos[id] = { x: +p.x, y: +p.y };
+  return { layout: m.layout === 'outline' ? 'outline' : 'tree', pos };
 }
 function load() {
   try {
@@ -548,7 +558,13 @@ function load() {
 }
 const clean = ({ _w, _h, ...n }) => n;
 const dataStr = () => JSON.stringify({ nodes: S.nodes.map(clean), edges: S.edges, layout: S.layout, free: !!S.free });
+// While boxes are placed by hand, remember where they are so 手動配列 can bring them back after an auto-arrange.
+function rememberManual() {
+  if (S.free) S.manual = { layout: S.layout, pos: Object.fromEntries(S.nodes.map(n => [n.id, { x: n.x, y: n.y }])) };
+  $('bManual').disabled = !S.manual;
+}
 function saveLocal() {
+  rememberManual();
   try { localStorage.setItem(KEY, JSON.stringify({ ...S, nodes: S.nodes.map(clean) })); } catch (e) {}
 }
 function save() { saveLocal(); queueCloud(); }
@@ -953,6 +969,19 @@ function layout(kind, record = true) {
   renderTree();
   kind === 'outline' ? layoutOutline() : layoutTree();
   renderTree(); fit(); save();
+}
+function manualLayout() {
+  if (!S.manual || !S.nodes.length) return;
+  snapshot();
+  const pos = S.manual.pos, missing = [];
+  for (const n of S.nodes) {
+    const p = pos[n.id];
+    if (p) { n.x = p.x; n.y = p.y; } else missing.push(n);
+  }
+  S.layout = S.manual.layout; S.free = true;
+  renderTree();
+  if (missing.length) { placeNew(missing); renderTree(); }
+  fit(); save();
 }
 function fit(anim = true) {
   if (S.mode !== 'tree') return;
@@ -1568,6 +1597,7 @@ $('viewnav').addEventListener('click', e => {
 $('bAdd').onclick = () => (S.mode === 'tree' && sel && sel.type === 'node') ? addChild(sel.id) : addRoot();
 $('bLayout').onclick = () => layout('tree');
 $('bOutline').onclick = () => layout('outline');
+$('bManual').onclick = manualLayout;
 $('bFit').onclick = () => fit();
 $('bUndo').onclick = undo;
 $('bHelp').onclick = () => $('help').classList.toggle('hidden');
