@@ -434,7 +434,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   左の ○ … 未着手 → 進行中 → 完了<br>
   まわりの ●（上下左右・四隅）をドラッグ … 他ノードへ接続（空白で離すと子タスク）<br>
   線をクリック → 両端のピンクの ● をドラッグ … つなぐ位置を変更<br>
-  一覧の ⋮⋮ をドラッグ … 順番の入れ替え（右にずらすと子タスクに）<br>
+  一覧の ⋮⋮ をドラッグ … 順番の入れ替え（階層はそのまま）<br>
   ノードを選択 → 下のバーで状態・子追加・詳細・削除<br>
   <kbd>Tab</kbd> 子追加　<kbd>Space</kbd> 状態　<kbd>Del</kbd> 削除　<kbd>D</kbd> 詳細<br>
   <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> … 優先度 高・中・低（<kbd>0</kbd> で解除）<br>
@@ -547,7 +547,7 @@ function load() {
   return sample();
 }
 const clean = ({ _w, _h, ...n }) => n;
-const dataStr = () => JSON.stringify({ nodes: S.nodes.map(clean), edges: S.edges });
+const dataStr = () => JSON.stringify({ nodes: S.nodes.map(clean), edges: S.edges, layout: S.layout, free: !!S.free });
 function saveLocal() {
   try { localStorage.setItem(KEY, JSON.stringify({ ...S, nodes: S.nodes.map(clean) })); } catch (e) {}
 }
@@ -561,6 +561,7 @@ function undo() {
   if (!s) return;
   const o = JSON.parse(s);
   S.nodes = o.nodes; S.edges = o.edges; sel = null;
+  if (o.layout) { S.layout = o.layout; S.free = !!o.free; }
   if (sheetId) { sheetId = null; sheet.classList.add('hidden'); document.body.classList.remove('sheet-open'); }
   refresh(); save();
 }
@@ -618,11 +619,11 @@ function isDescendant(root, id) {
   }
   return false;
 }
-// Move a task next to (or under) another task: mode is 'before' | 'after' | 'child'.
+// Move a task next to (or under) another task: mode is 'before' | 'after' | 'first' (first child).
 function moveTask(id, tid, mode) {
   if (id === tid) return;
   const info = Object.fromEntries(treeOrder().map(o => [o.n.id, o]));
-  const newParent = mode === 'child' ? tid : info[tid].parent;
+  const newParent = mode === 'first' ? tid : info[tid].parent;
   if (newParent === id || (newParent && isDescendant(id, newParent))) return;
   snapshot();
   const oldParent = info[id].parent;
@@ -632,7 +633,7 @@ function moveTask(id, tid, mode) {
   }
   const sibs = (newParent ? children(newParent).map(c => byId[c]) : S.nodes.filter(n => !hasParent(n.id)))
     .filter(n => n.id !== id).sort(sibCmp());
-  let at = mode === 'child' ? sibs.length : sibs.findIndex(n => n.id === tid) + (mode === 'after' ? 1 : 0);
+  let at = mode === 'first' ? 0 : sibs.findIndex(n => n.id === tid) + (mode === 'after' ? 1 : 0);
   if (at < 0) at = sibs.length;
   sibs.splice(at, 0, byId[id]);
   sibs.forEach((n, i) => { n.order = i; });
@@ -1238,7 +1239,8 @@ listBody.addEventListener('pointerdown', e => {
   const g = e.target.closest('.lgrip'); if (!g) return;
   e.preventDefault();
   const row = g.closest('.lrow');
-  ld = { id: row.dataset.id, row, pid: e.pointerId, x0: e.clientX, y0: e.clientY, target: null, mode: null, ind: el('div', 'ldrop') };
+  const depth = Object.fromEntries(treeOrder().map(o => [o.n.id, o.d]));
+  ld = { id: row.dataset.id, row, depth, pid: e.pointerId, x0: e.clientX, y0: e.clientY, target: null, mode: null, ind: el('div', 'ldrop') };
   ld.ind.hidden = true;
   listBody.append(ld.ind);
   g.setPointerCapture(e.pointerId);
@@ -1254,16 +1256,22 @@ listBody.addEventListener('pointermove', e => {
   let mode;
   if (t) {
     const b = t.getBoundingClientRect();
-    mode = e.clientX - ld.x0 > 40 ? 'child' : e.clientY < (b.top + b.bottom) / 2 ? 'before' : 'after';
+    mode = e.clientY < (b.top + b.bottom) / 2 ? 'before' : 'after';
   } else if (rows.length) {
     if (e.clientY < rows[0].getBoundingClientRect().top) { t = rows[0]; mode = 'before'; }
     else { t = rows[rows.length - 1]; mode = 'after'; }
+  }
+  // the task keeps its level: drop next to a task on the same level, or just under a task one level up
+  if (t) {
+    const dd = ld.depth[ld.id], td = ld.depth[t.dataset.id];
+    if (td === dd - 1 && mode === 'after') mode = 'first';
+    else if (td !== dd) t = null;
   }
   // a task cannot move inside its own subtree
   if (t && isDescendant(ld.id, t.dataset.id)) t = null;
   ld.target = t; ld.mode = mode;
   if (!t) { ld.ind.hidden = true; return; }
-  const br = listBody.getBoundingClientRect(), tb = t.getBoundingClientRect(), indent = mode === 'child' ? 28 : 0;
+  const br = listBody.getBoundingClientRect(), tb = t.getBoundingClientRect(), indent = mode === 'first' ? 28 : 0;
   Object.assign(ld.ind.style, {
     top: (mode === 'before' ? tb.top - 6 : tb.bottom + 3) - br.top + 'px',
     left: tb.left - br.left + indent + 'px', width: tb.width - indent + 'px'
