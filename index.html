@@ -103,13 +103,18 @@ body:not([data-mode=tree]) #vp{display:none}
 .edge.glow{stroke-width:8;opacity:.14}
 .edge.flow{stroke:#c9ecff;stroke-dasharray:3 12;opacity:.55;animation:flow 1.1s linear infinite}
 .edge.done{stroke:var(--done)}
+.edge.hot{stroke:var(--p-high);stroke-width:2.2}
+.edge.glow.hot{stroke-width:10;opacity:.3;animation:hotglow 1.6s ease-in-out infinite}
+.edge.flow.hot{stroke:#ffd0d7;opacity:.8}
 .edge.sel{stroke:var(--sel);opacity:1}
 .edge.glow.sel{opacity:.35}
 .hit{fill:none;stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:pointer}
 .end{fill:var(--bg);stroke:var(--line);stroke-width:1.5}
 .end.done{stroke:var(--done)}
+.end.hot{stroke:var(--p-high)}
 .temp{fill:none;stroke:var(--sel);stroke-width:2;stroke-dasharray:6 5}
 @keyframes flow{to{stroke-dashoffset:-15}}
+@keyframes hotglow{50%{opacity:.08}}
 
 .node{--c:var(--todo);position:absolute;width:max-content;min-width:120px;max-width:230px;
   padding:8px 12px 9px 32px;border:1px solid var(--c);border-radius:6px;background:color-mix(in srgb,var(--lvc,#0a2850) 88%,transparent);
@@ -775,12 +780,14 @@ function renderEdges() {
     }
     const p = edgePath(a, b, e);
     const isSel = sel && sel.type === 'edge' && sel.id === e.id;
-    const cls = (b.status === 'done' ? ' done' : '') + (isSel ? ' sel' : '');
+    // lines out of an unfinished high-priority task turn red to draw the eye
+    const hot = a.priority === 'high' && a.status !== 'done' ? ' hot' : '';
+    const cls = (hot || (b.status === 'done' ? ' done' : '')) + (isSel ? ' sel' : '');
     svg.append(
       mk('path', { d: p.d, class: 'edge glow' + cls }),
       mk('path', { d: p.d, class: 'edge' + cls }),
-      mk('path', { d: p.d, class: 'edge flow' }),
-      mk('circle', { cx: p.tx, cy: p.ty, r: 3.5, class: 'end' + (b.status === 'done' ? ' done' : '') }),
+      mk('path', { d: p.d, class: 'edge flow' + hot }),
+      mk('circle', { cx: p.tx, cy: p.ty, r: 3.5, class: 'end' + (hot || (b.status === 'done' ? ' done' : '')) }),
       mk('path', { d: p.d, class: 'hit', 'data-edge': e.id })
     );
     if (isSel && !drag) handles = p;
