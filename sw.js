@@ -1,6 +1,6 @@
 // Offline support: keep the app shell cached so the home-screen app opens without a connection.
 // Bump CACHE when shipping changes to the shell files.
-const CACHE = 'todo-tree-v2';
+const CACHE = 'todo-tree-v3';
 const SHELL = [
   './',
   './index.html',

@@ -130,10 +130,18 @@ body:not([data-mode=tree]) #vp{display:none}
 .done .chk,.chk.done{--c:var(--done);background:var(--c)}
 .done .chk::after,.chk.done::after{content:"";position:absolute;left:3.5px;top:1px;width:3px;height:6px;
   border:solid var(--bg);border-width:0 2px 2px 0;transform:rotate(45deg)}
-.port{position:absolute;left:50%;bottom:-6px;width:11px;height:11px;margin-left:-5.5px;border-radius:50%;
-  background:var(--bg);border:2px solid var(--c);cursor:crosshair;transition:transform .15s}
+.port{--o:-6px;--s:11px;position:absolute;width:var(--s);height:var(--s);border-radius:50%;
+  background:var(--bg);border:2px solid var(--c);cursor:crosshair;transition:transform .15s,opacity .15s}
 .port:hover{transform:scale(1.5);background:var(--c)}
-#world.outline .port{left:20px}
+.port.p-b{left:50%;bottom:var(--o);margin-left:calc(var(--s) / -2)}
+.port.p-t{left:50%;top:var(--o);margin-left:calc(var(--s) / -2)}
+.port.p-tl{left:var(--o);top:var(--o)}
+.port.p-tr{right:var(--o);top:var(--o)}
+.port.p-bl{left:var(--o);bottom:var(--o)}
+.port.p-br{right:var(--o);bottom:var(--o)}
+.port:not(.p-b){opacity:0;pointer-events:none}
+.node:hover .port,.node.selected .port,#vp.linking .port{opacity:1;pointer-events:auto}
+#world.outline .port.p-b{left:20px}
 .bar{display:flex;align-items:center;gap:6px;margin-top:6px}
 .bar b{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.1);overflow:hidden}
 .bar b i{display:block;height:100%;background:var(--done)}
@@ -172,6 +180,14 @@ body[data-mode=list] #listView,body[data-mode=gantt] #ganttView{display:flex}
 .lmeta{font-size:11px;color:var(--muted);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap;font-weight:400}
 .lmeta .st{color:var(--c)}
 .lrow.late .per{color:var(--late)}
+#listBody{position:relative}
+.lrow.grip{padding-left:60px}
+.lrow.grip .chk{left:34px}
+.lgrip{position:absolute;left:2px;top:0;bottom:0;width:28px;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;font-size:15px;letter-spacing:-3px}
+.lgrip:hover{color:var(--text)}
+.lrow.dragging{z-index:5;opacity:.9;cursor:grabbing;transition:none;box-shadow:0 12px 28px rgba(0,0,0,.55)}
+.ldrop{position:absolute;height:3px;border-radius:2px;background:var(--sel);box-shadow:0 0 8px var(--sel);pointer-events:none;z-index:6}
 .lmeta .per{white-space:nowrap}
 .lprog:empty{display:none}
 .lprog{width:96px;flex:none;display:flex;align-items:center;gap:6px}
@@ -260,8 +276,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
 
 /* ---------- touch / phone ---------- */
 @media (pointer:coarse){
-  .port{width:17px;height:17px;margin-left:-8.5px;bottom:-9px}
-  #world.outline .port{left:20px}
+  .port{--o:-9px;--s:17px}
   .chk{width:18px;height:18px;margin-top:-9px;left:8px}
   .done .chk::after,.chk.done::after{left:5px;top:2px;width:4px;height:8px}
   .node{padding-left:36px}
@@ -406,7 +421,8 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   空白をダブルクリック（スマホはダブルタップ）… タスク追加<br>
   ノードをダブルクリック / <kbd>Enter</kbd> … 名前を編集<br>
   左の ○ … 未着手 → 進行中 → 完了<br>
-  下の ● をドラッグ … 他ノードへ接続（空白で離すと子タスク）<br>
+  まわりの ●（上下・四隅）をドラッグ … 他ノードへ接続（空白で離すと子タスク）<br>
+  一覧の ⋮⋮ をドラッグ … 順番の入れ替え（右にずらすと子タスクに）<br>
   ノードを選択 → 下のバーで状態・子追加・詳細・削除<br>
   <kbd>Tab</kbd> 子追加　<kbd>Space</kbd> 状態　<kbd>Del</kbd> 削除　<kbd>D</kbd> 詳細<br>
   <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> … 優先度 高・中・低（<kbd>0</kbd> で解除）<br>
@@ -423,6 +439,10 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
 const KEY = 'todo-tree-v1';
 const STATUS = ['todo', 'doing', 'done'];
 const LABEL = { todo: '未着手', doing: '進行中', done: '完了' };
+// connection points around a node: top, bottom and the four corners
+const PORTS = ['t', 'b', 'tl', 'tr', 'bl', 'br'];
+const PORT_N = { t: [0, -1], b: [0, 1], tl: [-.7, -.7], tr: [.7, -.7], bl: [-.7, .7], br: [.7, .7] };
+const OPP = { t: 'b', b: 't', tl: 'br', tr: 'bl', bl: 'tr', br: 'tl' };
 const PRI = ['high', 'mid', 'low'], PRI_LABEL = { high: '高', mid: '中', low: '低' }, PRI_RANK = { high: 0, mid: 1, low: 2, '': 3 };
 const DEPTH = 0, DAY = 864e5, DATE = /^\d{4}-\d{2}-\d{2}$/;
 const $ = id => document.getElementById(id);
@@ -486,11 +506,16 @@ function normalize(s) {
     id: String(n.id), x: +n.x || 0, y: +n.y || 0, text: String(n.text ?? ''),
     status: STATUS.includes(n.status) ? n.status : 'todo',
     start: DATE.test(n.start) ? n.start : '', end: DATE.test(n.end) ? n.end : '', memo: String(n.memo ?? ''),
-    priority: PRI.includes(n.priority) ? n.priority : ''
+    priority: PRI.includes(n.priority) ? n.priority : '',
+    order: typeof n.order === 'number' && isFinite(n.order) ? n.order : null
   }));
   const ids = new Set(nodes.map(n => n.id));
   const edges = (s.edges || []).filter(e => e && ids.has(String(e.from)) && ids.has(String(e.to)))
-    .map(e => ({ id: String(e.id ?? uid()), from: String(e.from), to: String(e.to) }));
+    .map(e => {
+      const o = { id: String(e.id ?? uid()), from: String(e.from), to: String(e.to) };
+      if (PORTS.includes(e.fp) && PORTS.includes(e.tp)) { o.fp = e.fp; o.tp = e.tp; }
+      return o;
+    });
   const v = s.view || {};
   return {
     title: String(s.title || 'TODO Tree').slice(0, 60), nodes, edges,
@@ -555,16 +580,50 @@ function summary(id) {
   })(id);
   return lo <= hi ? [lo, hi] : null;
 }
+// Siblings follow their saved order (set by reordering in the list), then their position.
+function sibCmp() {
+  const pos = S.layout === 'outline' ? (a, b) => a.y - b.y || a.x - b.x : (a, b) => a.x - b.x || a.y - b.y;
+  return (a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || pos(a, b);
+}
 function treeOrder() {
-  const cmp = S.layout === 'outline' ? (a, b) => a.y - b.y || a.x - b.x : (a, b) => a.x - b.x || a.y - b.y;
+  const cmp = sibCmp();
   const out = [], seen = new Set();
-  const walk = (id, d) => {
-    seen.add(id); out.push({ n: byId[id], d });
-    for (const c of children(id).map(c => byId[c]).sort(cmp)) if (!seen.has(c.id)) walk(c.id, d + 1);
+  const walk = (id, d, parent) => {
+    seen.add(id); out.push({ n: byId[id], d, parent });
+    for (const c of children(id).map(c => byId[c]).sort(cmp)) if (!seen.has(c.id)) walk(c.id, d + 1, id);
   };
-  for (const r of S.nodes.filter(n => !hasParent(n.id)).sort(cmp)) if (!seen.has(r.id)) walk(r.id, 0);
-  for (const n of [...S.nodes].sort(cmp)) if (!seen.has(n.id)) walk(n.id, 0);
+  for (const r of S.nodes.filter(n => !hasParent(n.id)).sort(cmp)) if (!seen.has(r.id)) walk(r.id, 0, null);
+  for (const n of [...S.nodes].sort(cmp)) if (!seen.has(n.id)) walk(n.id, 0, null);
   return out;
+}
+function isDescendant(root, id) {
+  const seen = new Set([root]), stack = [root];
+  while (stack.length) for (const c of children(stack.pop())) {
+    if (c === id) return true;
+    if (!seen.has(c)) { seen.add(c); stack.push(c); }
+  }
+  return false;
+}
+// Move a task next to (or under) another task: mode is 'before' | 'after' | 'child'.
+function moveTask(id, tid, mode) {
+  if (id === tid) return;
+  const info = Object.fromEntries(treeOrder().map(o => [o.n.id, o]));
+  const newParent = mode === 'child' ? tid : info[tid].parent;
+  if (newParent === id || (newParent && isDescendant(id, newParent))) return;
+  snapshot();
+  const oldParent = info[id].parent;
+  if (oldParent !== newParent) {
+    S.edges = S.edges.filter(e => !(e.from === oldParent && e.to === id));
+    if (newParent && !S.edges.some(e => e.from === newParent && e.to === id)) S.edges.push({ id: uid(), from: newParent, to: id });
+  }
+  const sibs = (newParent ? children(newParent).map(c => byId[c]) : S.nodes.filter(n => !hasParent(n.id)))
+    .filter(n => n.id !== id).sort(sibCmp());
+  let at = mode === 'child' ? sibs.length : sibs.findIndex(n => n.id === tid) + (mode === 'after' ? 1 : 0);
+  if (at < 0) at = sibs.length;
+  sibs.splice(at, 0, byId[id]);
+  sibs.forEach((n, i) => { n.order = i; });
+  sync.needLayout = true;
+  refresh(); save();
 }
 
 /* ---------- refresh ---------- */
@@ -610,8 +669,11 @@ function renderTree() {
       b.append(i); bar.append(b, el('small', '', `${p.done}/${p.leaves}`));
       e.append(bar);
     }
-    const port = el('div', 'port'); port.title = 'ドラッグして接続';
-    e.append(port);
+    for (const p of PORTS) {
+      const port = el('div', 'port p-' + p);
+      port.dataset.port = p; port.title = 'ドラッグして接続';
+      e.append(port);
+    }
     nodesEl.append(e);
   }
   for (const e of nodesEl.children) {
@@ -623,11 +685,30 @@ function renderTree() {
 function anchorOut(a) {
   return S.layout === 'outline' ? { x: a.x + 20, y: a.y + a._h + DEPTH } : { x: a.x + a._w / 2, y: a.y + a._h + DEPTH };
 }
+function portPos(n, p) {
+  const { x, y } = n, w = n._w, h = n._h;
+  if (p === 'b') return S.layout === 'outline' ? { x: x + 20, y: y + h + DEPTH } : { x: x + w / 2, y: y + h + DEPTH };
+  return { t: { x: x + w / 2, y }, tl: { x, y }, tr: { x: x + w, y }, bl: { x, y: y + h }, br: { x: x + w, y: y + h } }[p];
+}
+const nearestPort = (n, pt) => PORTS.reduce((best, p) => {
+  const q = portPos(n, p), d = Math.hypot(q.x - pt.x, q.y - pt.y);
+  return d < best.d ? { p, d } : best;
+}, { p: 't', d: Infinity }).p;
+// Bezier that leaves each end along that port's outward direction.
+function portCurve(s, ns, t, nt) {
+  const c = Math.max(30, Math.min(150, Math.hypot(t.x - s.x, t.y - s.y) * 0.45));
+  const [tx, ty] = nt || [0, 0];
+  return `M${s.x},${s.y} C${s.x + ns[0] * c},${s.y + ns[1] * c} ${t.x + tx * c},${t.y + ty * c} ${t.x},${t.y}`;
+}
 function curve(s, tx, ty) {
   const c = Math.max(40, Math.abs(ty - s.y) / 2);
   return `M${s.x},${s.y} C${s.x},${s.y + c} ${tx},${ty - c} ${tx},${ty}`;
 }
-function edgePath(a, b) {
+function edgePath(a, b, e) {
+  if (e && e.fp) {
+    const s = portPos(a, e.fp), t = portPos(b, e.tp);
+    return { d: portCurve(s, PORT_N[e.fp], t, PORT_N[e.tp]), tx: t.x, ty: t.y };
+  }
   const s = anchorOut(a);
   if (S.layout === 'outline') {
     const tx = b.x, ty = b.y + b._h / 2;
@@ -649,7 +730,7 @@ function renderEdges() {
   for (const e of S.edges) {
     const a = byId[e.from], b = byId[e.to];
     if (!a || !b || a._w == null || b._w == null) continue;
-    const p = edgePath(a, b);
+    const p = edgePath(a, b, e);
     const cls = (b.status === 'done' ? ' done' : '') + (sel && sel.type === 'edge' && sel.id === e.id ? ' sel' : '');
     svg.append(
       mk('path', { d: p.d, class: 'edge glow' + cls }),
@@ -660,7 +741,7 @@ function renderEdges() {
     );
   }
   if (drag && drag.mode === 'link' && drag.cur) {
-    svg.append(mk('path', { d: curve(anchorOut(byId[drag.id]), drag.cur.x, drag.cur.y), class: 'temp' }));
+    svg.append(mk('path', { d: portCurve(portPos(byId[drag.id], drag.port), PORT_N[drag.port], drag.cur, null), class: 'temp' }));
   }
 }
 function applyView() {
@@ -677,11 +758,11 @@ const toWorld = (cx, cy) => ({ x: (cx - S.view.x) / S.view.k, y: (cy - S.view.y)
 function relayoutIfOutline() {
   if (S.mode === 'tree' && S.layout === 'outline') { renderTree(); layoutOutline(); }
 }
-function addNode(x, y, parent) {
+function addNode(x, y, parent, ports) {
   snapshot();
   const n = { id: uid(), x, y, text: '', status: 'todo', start: '', end: '', memo: '', priority: '' };
   S.nodes.push(n);
-  if (parent) S.edges.push({ id: uid(), from: parent, to: n.id });
+  if (parent) S.edges.push({ id: uid(), from: parent, to: n.id, ...(ports || {}) });
   sel = { type: 'node', id: n.id };
   index(); relayoutIfOutline(); refresh(); save();
   edit(n.id, true);
@@ -750,10 +831,11 @@ function setPriority(id, p) {
   refresh(); save();
   if (sheetId === id) fillSheet();
 }
-function connect(from, to) {
+function connect(from, to, fp = 'b', tp = 't') {
   if (from === to || S.edges.some(e => (e.from === from && e.to === to) || (e.from === to && e.to === from))) return;
   snapshot();
-  S.edges.push({ id: uid(), from, to });
+  // bottom-to-top is the default tree link; anything else remembers its ports
+  S.edges.push(fp === 'b' && tp === 't' ? { id: uid(), from, to } : { id: uid(), from, to, fp, tp });
   relayoutIfOutline(); refresh(); save();
 }
 
@@ -794,14 +876,15 @@ function edit(id, isNew = false) {
 
 /* ---------- layouts ---------- */
 function layoutTree() {
-  const roots = S.nodes.filter(n => !hasParent(n.id)).sort((a, b) => a.x - b.x);
+  const cmp = sibCmp();
+  const roots = S.nodes.filter(n => !hasParent(n.id)).sort(cmp);
   if (!roots.length) roots.push(S.nodes[0]);
   const placed = new Set(), depth = {}, GX = 26;
   let cursor = 0;
   const place = (id, d) => {
     placed.add(id); depth[id] = d;
     const n = byId[id];
-    const kids = children(id).filter(c => !placed.has(c)).map(c => byId[c]).sort((a, b) => a.x - b.x);
+    const kids = children(id).filter(c => !placed.has(c)).map(c => byId[c]).sort(cmp);
     kids.forEach(k => placed.add(k.id));
     const xs = kids.map(k => { placed.delete(k.id); return place(k.id, d + 1); });
     let cx;
@@ -874,7 +957,8 @@ vp.addEventListener('pointerdown', e => {
   const nEl = t.closest('.node'), w = toWorld(e.clientX, e.clientY);
   if (t.classList.contains('chk') && nEl) { drag = { mode: 'none' }; cycle(nEl.dataset.id); return; }
   if (t.classList.contains('port') && nEl) {
-    drag = { mode: 'link', id: nEl.dataset.id, cur: w };
+    drag = { mode: 'link', id: nEl.dataset.id, port: t.dataset.port || 'b', cur: w };
+    vp.classList.add('linking');
   } else if (nEl) {
     const id = nEl.dataset.id;
     sel = { type: 'node', id }; updateSelection(); renderEdges();
@@ -957,7 +1041,7 @@ function endPointer(e, cancelled) {
     return;
   }
   const d = drag; drag = null;
-  vp.classList.remove('panning');
+  vp.classList.remove('panning', 'linking');
   if (d.mode === 'pan') {
     save();
     if (!d.moved && !cancelled) {
@@ -975,16 +1059,25 @@ function endPointer(e, cancelled) {
     if (dropEl) dropEl.classList.remove('drop');
     const target = dropEl; dropEl = null;
     if (cancelled) return renderEdges();
-    if (target) connect(d.id, target.dataset.id);
-    else {
-      const a = byId[d.id], w = toWorld(e.clientX, e.clientY), s = anchorOut(a);
-      if (Math.hypot(w.x - s.x, w.y - s.y) > 30) addNode(Math.round(w.x - 60), Math.round(w.y), d.id);
-      else renderEdges();
+    const w = toWorld(e.clientX, e.clientY);
+    if (target) {
+      const over = document.elementFromPoint(e.clientX, e.clientY);
+      const tp = over && over.classList.contains('port') && over.closest('.node') === target
+        ? over.dataset.port : nearestPort(byId[target.dataset.id], w);
+      connect(d.id, target.dataset.id, d.port, tp);
+    } else {
+      const s = portPos(byId[d.id], d.port);
+      if (Math.hypot(w.x - s.x, w.y - s.y) > 30) {
+        // place the new task so its facing port lands where the line was dropped
+        const tp = OPP[d.port], W = 130, H = 38;
+        const off = { t: [-W / 2, 0], b: [-W / 2, -H], tl: [0, 0], tr: [-W, 0], bl: [0, -H], br: [-W, -H] }[tp];
+        addNode(Math.round(w.x + off[0]), Math.round(w.y + off[1]), d.id, d.port === 'b' ? null : { fp: d.port, tp });
+      } else renderEdges();
     }
   }
 }
 vp.addEventListener('pointerup', e => endPointer(e, false));
-vp.addEventListener('pointercancel', e => endPointer(e, true));
+vp.addEventListener('pointercancel', e => { vp.classList.remove('linking'); endPointer(e, true); });
 
 vp.addEventListener('dblclick', e => {
   if (lastPtr !== 'mouse') return;
@@ -1032,6 +1125,7 @@ function renderList() {
   chips.append(so);
   const body = $('listBody'); body.textContent = '';
   let shown = 0;
+  const canDrag = listFilter === 'all' && listSort === 'tree';
   const rows = listSort === 'pri'
     ? order.map(o => ({ ...o, d: 0 })).sort((a, b) => PRI_RANK[a.n.priority] - PRI_RANK[b.n.priority])
     : order;
@@ -1057,6 +1151,10 @@ function renderList() {
     }
     const add = el('button', 'ladd', '＋'); add.title = '子タスクを追加';
     row.append(el('button', 'chk'), main, prog, add);
+    if (canDrag) {
+      const g = el('div', 'lgrip', '⋮⋮'); g.title = 'ドラッグして並べ替え';
+      row.classList.add('grip'); row.prepend(g);
+    }
     body.append(row);
   }
   if (!shown) body.append(el('div', 'empty-msg', S.nodes.length ? '該当するタスクはありません' : 'タスクがありません。「＋ タスク」から追加してください。'));
@@ -1067,12 +1165,59 @@ $('chips').addEventListener('click', e => {
   else if (c.dataset.f) { listFilter = c.dataset.f; renderList(); }
 });
 $('listBody').addEventListener('click', e => {
-  const row = e.target.closest('.lrow'); if (!row) return;
+  const row = e.target.closest('.lrow'); if (!row || e.target.closest('.lgrip')) return;
   const id = row.dataset.id;
   if (e.target.closest('.chk')) return cycle(id);
   if (e.target.closest('.ladd')) return addChildAny(id);
   openSheet(id);
 });
+
+let ld = null;
+const listBody = $('listBody');
+listBody.addEventListener('pointerdown', e => {
+  const g = e.target.closest('.lgrip'); if (!g) return;
+  e.preventDefault();
+  const row = g.closest('.lrow');
+  ld = { id: row.dataset.id, row, pid: e.pointerId, x0: e.clientX, y0: e.clientY, target: null, mode: null, ind: el('div', 'ldrop') };
+  ld.ind.hidden = true;
+  listBody.append(ld.ind);
+  g.setPointerCapture(e.pointerId);
+  row.classList.add('dragging');
+});
+listBody.addEventListener('pointermove', e => {
+  if (!ld || e.pointerId !== ld.pid) return;
+  ld.row.style.transform = `translateY(${e.clientY - ld.y0}px)`;
+  const sc = listBody.closest('.lscroll'), sr = sc.getBoundingClientRect();
+  if (e.clientY < sr.top + 40) sc.scrollTop -= 10; else if (e.clientY > sr.bottom - 40) sc.scrollTop += 10;
+  const rows = [...listBody.querySelectorAll('.lrow')].filter(r => r !== ld.row);
+  let t = rows.find(r => { const b = r.getBoundingClientRect(); return e.clientY >= b.top - 5 && e.clientY <= b.bottom + 4; });
+  let mode;
+  if (t) {
+    const b = t.getBoundingClientRect();
+    mode = e.clientX - ld.x0 > 40 ? 'child' : e.clientY < (b.top + b.bottom) / 2 ? 'before' : 'after';
+  } else if (rows.length) {
+    if (e.clientY < rows[0].getBoundingClientRect().top) { t = rows[0]; mode = 'before'; }
+    else { t = rows[rows.length - 1]; mode = 'after'; }
+  }
+  // a task cannot move inside its own subtree
+  if (t && isDescendant(ld.id, t.dataset.id)) t = null;
+  ld.target = t; ld.mode = mode;
+  if (!t) { ld.ind.hidden = true; return; }
+  const br = listBody.getBoundingClientRect(), tb = t.getBoundingClientRect(), indent = mode === 'child' ? 28 : 0;
+  Object.assign(ld.ind.style, {
+    top: (mode === 'before' ? tb.top - 6 : tb.bottom + 3) - br.top + 'px',
+    left: tb.left - br.left + indent + 'px', width: tb.width - indent + 'px'
+  });
+  ld.ind.hidden = false;
+});
+const endListDrag = e => {
+  if (!ld || e.pointerId !== ld.pid) return;
+  const d = ld; ld = null;
+  d.row.classList.remove('dragging'); d.row.style.transform = ''; d.ind.remove();
+  if (e.type === 'pointerup' && d.target) moveTask(d.id, d.target.dataset.id, d.mode);
+};
+listBody.addEventListener('pointerup', endListDrag);
+listBody.addEventListener('pointercancel', endListDrag);
 
 /* ---------- gantt view ---------- */
 function placeBar(b, sp) {
@@ -1412,8 +1557,8 @@ const CLIENT = uid();
 const sync = { ref: null, ready: false, writing: false, queued: false, lastSent: null, pending: null, timer: 0, needLayout: false };
 const contentOf = st => JSON.stringify({
   title: st.title, gscale: st.gscale,
-  tasks: st.nodes.map(({ id, text, status, start, end, memo, priority }) => ({ id, text, status, start, end, memo, priority })),
-  edges: st.edges.map(({ id, from, to }) => ({ id, from, to }))
+  tasks: st.nodes.map(({ id, text, status, start, end, memo, priority, order }) => ({ id, text, status, start, end, memo, priority, order: order ?? null })),
+  edges: st.edges.map(({ id, from, to, fp, tp }) => ({ id, from, to, fp: fp || null, tp: tp || null }))
 });
 function setSync(state, text) { const e = $('sync'); e.dataset.s = state; e.textContent = text; }
 function queueCloud() {
