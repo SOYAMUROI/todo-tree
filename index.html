@@ -544,6 +544,7 @@ function normalize(s) {
     mode: ['tree', 'list', 'gantt'].includes(s.mode) ? s.mode : 'tree',
     layout: s.layout === 'outline' ? 'outline' : 'tree',
     free: !!s.free,
+    layoutAt: +s.layoutAt || (s.free ? 1 : 0),
     manual: normManual(s.manual),
     gscale: [32, 12, 4].includes(s.gscale) ? s.gscale : 32
   };
@@ -582,7 +583,7 @@ function undo() {
   if (!s) return;
   const o = JSON.parse(s);
   S.nodes = o.nodes; S.edges = o.edges; sel = null;
-  if (o.layout) { S.layout = o.layout; S.free = !!o.free; }
+  if (o.layout) { S.layout = o.layout; S.free = !!o.free; S.layoutAt = Date.now(); }
   if (sheetId) { sheetId = null; sheet.classList.add('hidden'); document.body.classList.remove('sheet-open'); }
   refresh(); save();
 }
@@ -973,6 +974,7 @@ function layout(kind, record = true) {
   if (!S.nodes.length) return;
   if (record) snapshot();
   S.layout = kind; S.free = false;
+  if (record) S.layoutAt = Date.now();
   renderTree();
   kind === 'outline' ? layoutOutline() : layoutTree();
   renderTree(); fit(); save();
@@ -985,7 +987,7 @@ function manualLayout() {
     const p = pos[n.id];
     if (p) { n.x = p.x; n.y = p.y; } else missing.push(n);
   }
-  S.layout = S.manual.layout; S.free = true;
+  S.layout = S.manual.layout; S.free = true; S.layoutAt = Date.now();
   renderTree();
   if (missing.length) { placeNew(missing); renderTree(); }
   fit(); save();
@@ -1127,7 +1129,7 @@ function endPointer(e, cancelled) {
     }
   } else if (d.mode === 'move') {
     d.items.forEach(it => it.el.classList.remove('dragging'));
-    if (d.moved) { undoStack.push(d.before); S.free = true; save(); }
+    if (d.moved) { undoStack.push(d.before); S.free = true; S.layoutAt = Date.now(); save(); }
     else if (!cancelled) {
       if (sheetId && sheetId !== d.id) openSheet(d.id);
       if (e.pointerType !== 'mouse') tap(e, d.id);
@@ -1657,13 +1659,15 @@ addEventListener('resize', () => {
 });
 
 /* ---------- cloud sync (PC <-> phone) ---------- */
-// Task content lives in the viewer's private db doc; layout, zoom and view stay per device.
+// Tasks and where each box sits live in the viewer's private db doc, so a hand-made layout follows
+// the account to every device; zoom and view stay per device.
 const CLIENT = uid();
 const sync = { ref: null, ready: false, writing: false, queued: false, lastSent: null, pending: null, timer: 0, needLayout: false };
 const contentOf = st => JSON.stringify({
   title: st.title, gscale: st.gscale,
-  tasks: st.nodes.map(({ id, text, status, start, end, memo, priority, order }) => ({ id, text, status, start, end, memo, priority, order: order ?? null })),
-  edges: st.edges.map(({ id, from, to, fp, tp }) => ({ id, from, to, fp: fp || null, tp: tp || null }))
+  tasks: st.nodes.map(({ id, text, status, start, end, memo, priority, order, x, y }) => ({ id, text, status, start, end, memo, priority, order: order ?? null, x, y })),
+  edges: st.edges.map(({ id, from, to, fp, tp }) => ({ id, from, to, fp: fp || null, tp: tp || null })),
+  layout: st.layout, free: !!st.free, layoutAt: st.layoutAt || 0, manual: st.manual || null
 });
 function setSync(state, text) { const e = $('sync'); e.dataset.s = state; e.textContent = text; }
 function queueCloud() {
@@ -1703,7 +1707,13 @@ function onRemote(snap) {
   }
   const d = snap.data();
   if (d.client === CLIENT && snap.metadata.hasPendingWrites) return;
-  const remote = normalize({ title: d.title, gscale: d.gscale, nodes: d.tasks || [], edges: d.edges || [] });
+  const remote = normalize({ title: d.title, gscale: d.gscale, nodes: d.tasks || [], edges: d.edges || [],
+    layout: d.layout, free: d.free, layoutAt: d.layoutAt, manual: d.manual });
+  // take the other device's box positions only when its layout was changed more recently than this one's
+  // (or this device never arranged anything), so a hand-made layout is never replaced by an older or automatic one
+  remote.hasPos = (d.tasks || []).every(t => typeof t.x === 'number' && typeof t.y === 'number')
+    && remote.layoutAt >= (S.layoutAt || 0);
+  if (!remote.hasPos) Object.assign(remote, { layout: S.layout, free: S.free, layoutAt: S.layoutAt || 0, manual: S.manual });
   const remoteStr = contentOf(remote);
   const localDirty = sync.ready && contentOf(S) !== sync.lastSent;
   sync.ready = true;
@@ -1716,13 +1726,16 @@ function onRemote(snap) {
 function applyRemote() {
   if (!sync.pending || isBusy()) return;
   const r = sync.pending; sync.pending = null;
-  const pos = Object.fromEntries(S.nodes.map(n => [n.id, n]));
   const missing = [];
-  for (const n of r.nodes) {
-    const p = pos[n.id];
-    if (p) { n.x = p.x; n.y = p.y; } else missing.push(n);
+  if (!r.hasPos) {
+    const pos = Object.fromEntries(S.nodes.map(n => [n.id, n]));
+    for (const n of r.nodes) {
+      const p = pos[n.id];
+      if (p) { n.x = p.x; n.y = p.y; } else missing.push(n);
+    }
   }
   S.title = r.title; S.gscale = r.gscale; S.nodes = r.nodes; S.edges = r.edges;
+  S.layout = r.layout; S.free = r.free; S.layoutAt = r.layoutAt; S.manual = r.manual;
   undoStack.length = 0;
   index();
   if (sel && sel.type === 'node' && !byId[sel.id]) sel = null;
@@ -1733,13 +1746,18 @@ function applyRemote() {
   else if (missing.length) placeNew(missing);
   if (S.mode === 'tree') {
     renderTree();
-    if (autoOutline()) { layoutOutline(); renderTree(); }
+    // positions that came with the data are used exactly as they are
+    if (!r.hasPos && autoOutline()) { layoutOutline(); renderTree(); }
     else if (sync.needLayout) { layoutTree(); renderTree(); }
     sync.needLayout = false;
+    // the first layout that arrives from another device may sit off screen
+    if (r.hasPos && !sync.fitted) fit(false);
     stats(); updateSelection();
   } else refresh();
   saveLocal();
   setSync('ok', '同期済み');
+  if (r.hasPos) sync.fitted = true;
+  if (!r.hasPos) queueCloud(); // send this device's layout so other devices get it too
 }
 // Put tasks that arrived from another device under their parent (or to the right), leaving the rest alone.
 function placeNew(list) {
