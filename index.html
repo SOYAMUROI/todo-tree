@@ -126,6 +126,8 @@ body:not([data-mode=tree]) #vp{display:none}
 .node.done{--c:var(--done)}
 .node.done .label{text-decoration:line-through;opacity:.65}
 .node.root{font-weight:700;font-size:14px;padding-top:10px;padding-bottom:11px}
+.node.today{animation:todayblink 1.2s ease-in-out infinite}
+@keyframes todayblink{50%{border-color:#fff;box-shadow:0 0 22px 4px color-mix(in srgb,var(--c) 85%,transparent),inset 0 0 18px color-mix(in srgb,var(--c) 40%,transparent)}}
 .node.selected{outline:2px solid var(--sel);outline-offset:3px}
 .node.dragging{cursor:grabbing;z-index:2}
 .node.drop{outline:2px dashed var(--sel);outline-offset:4px}
@@ -267,6 +269,7 @@ body[data-mode=list] #listView,body[data-mode=gantt] #ganttView{display:flex}
   border:1px solid rgba(58,168,255,.35);border-radius:6px;padding:8px 10px;color-scheme:dark}
 .sheet input:focus,.sheet textarea:focus{outline:none;border-color:var(--todo);box-shadow:0 0 0 3px rgba(56,189,248,.2)}
 .sheet textarea{min-height:72px;resize:vertical}
+.sheet #sName{min-height:0;resize:none;overflow:hidden;line-height:1.4}
 .seg{display:inline-flex;border:1px solid rgba(58,168,255,.35);border-radius:7px;overflow:hidden;background:rgba(0,0,0,.25)}
 .seg button{background:transparent;border:0;padding:7px 13px;font-size:12px;cursor:pointer;color:var(--muted)}
 .seg button.on{color:#fff;background:rgba(56,189,248,.28);box-shadow:inset 0 1px 0 rgba(255,255,255,.2)}
@@ -352,6 +355,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
       <button class="t primary" id="bAdd">＋ タスク</button>
       <button class="t tree-only" id="bLayout">ツリー整列</button>
       <button class="t tree-only" id="bOutline">縦並び整列</button>
+      <button class="t tree-only" id="bSaveManual">配置を保存</button>
       <button class="t tree-only" id="bManual" disabled>手動配列</button>
       <button class="t tree-only" id="bFit">全体表示</button>
       <button class="t" id="bUndo">元に戻す</button>
@@ -395,7 +399,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
 <aside class="sheet hidden" id="sheet">
   <div class="sheet-head"><span>タスク詳細</span><button class="xbtn" id="sClose" aria-label="閉じる">×</button></div>
   <label for="sName">タスク名</label>
-  <input id="sName" autocomplete="off">
+  <textarea id="sName" rows="1" autocomplete="off"></textarea>
   <label>状態</label>
   <div class="seg" id="sStatus"><button data-s="todo">未着手</button><button data-s="doing">進行中</button><button data-s="done">完了</button></div>
   <label>優先度</label>
@@ -442,7 +446,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   まわりの ●（上下左右・四隅）をドラッグ … 他ノードへ接続（空白で離すと子タスク）<br>
   線をクリック → 両端のピンクの ● をドラッグ … つなぐ位置を変更<br>
   一覧の ⋮⋮ をドラッグ … 順番の入れ替え（階層はそのまま）<br>
-  「手動配列」 … 整列ボタンを押す前の、自分で並べた位置に戻す<br>
+  「配置を保存」 … 今のボックスの位置を保存　「手動配列」 … 保存した位置に戻す<br>
   ノードを選択 → 下のバーで状態・子追加・詳細・削除<br>
   <kbd>Tab</kbd> 子追加　<kbd>Space</kbd> 状態　<kbd>Del</kbd> 削除　<kbd>D</kbd> 詳細<br>
   <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> … 優先度 高・中・低（<kbd>0</kbd> で解除）<br>
@@ -473,6 +477,9 @@ const NS = 'http://www.w3.org/2000/svg';
 const uid = () => Math.random().toString(36).slice(2, 10);
 const mq = matchMedia('(max-width:700px)');
 const isMobile = () => mq.matches;
+// on a touch keyboard Enter makes a new line (tap elsewhere to finish); with a keyboard Enter finishes, Shift+Enter makes a new line
+const touchKeys = matchMedia('(pointer: coarse)');
+const endsEdit = ev => ev.key === 'Enter' && !ev.shiftKey && !touchKeys.matches;
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
 let S, byId = {}, sel = null, editing = null, drag = null, listFilter = 'all', listSort = 'tree', treeFitted = false, G = null;
@@ -491,9 +498,13 @@ const ownSpan = n => {
   s ??= e; e ??= s;
   return [Math.min(s, e), Math.max(s, e)];
 };
+const WD = '日月火水木金土';
+const mdw = n => `${md(n)}(${WD[dow(n)]})`;
+const spanTextW = sp => sp[0] === sp[1] ? mdw(sp[0]) : `${mdw(sp[0])} → ${mdw(sp[1])}（${sp[1] - sp[0] + 1}日）`;
 const spanText = sp => sp[0] === sp[1] ? md(sp[0]) : `${md(sp[0])} → ${md(sp[1])}（${sp[1] - sp[0] + 1}日）`;
 const priBadge = n => n.priority ? el('i', 'pri ' + n.priority, PRI_LABEL[n.priority]) : '';
 const periodText = n => { const sp = ownSpan(n); return sp ? spanText(sp) : ''; };
+const isToday = n => { const sp = ownSpan(n), T = todayDay(); return n.status !== 'done' && !!sp && sp[0] <= T && T <= sp[1]; };
 const isLate = n => { const sp = ownSpan(n); return n.status !== 'done' && !!sp && sp[1] < todayDay(); };
 
 /* ---------- data ---------- */
@@ -564,13 +575,8 @@ function load() {
 }
 const clean = ({ _w, _h, ...n }) => n;
 const dataStr = () => JSON.stringify({ nodes: S.nodes.map(clean), edges: S.edges, layout: S.layout, free: !!S.free });
-// While boxes are placed by hand, remember where they are so 手動配列 can bring them back after an auto-arrange.
-function rememberManual() {
-  if (S.free) S.manual = { layout: S.layout, pos: Object.fromEntries(S.nodes.map(n => [n.id, { x: n.x, y: n.y }])) };
-  $('bManual').disabled = !S.manual;
-}
 function saveLocal() {
-  rememberManual();
+  $('bManual').disabled = !S.manual;
   try { localStorage.setItem(KEY, JSON.stringify({ ...S, nodes: S.nodes.map(clean) })); } catch (e) {}
 }
 function save() { saveLocal(); queueCloud(); }
@@ -692,14 +698,14 @@ function renderTree() {
   world.classList.toggle('outline', S.layout === 'outline');
   nodesEl.textContent = '';
   for (const n of S.nodes) {
-    const e = el('div', 'node ' + n.status + (hasParent(n.id) ? '' : ' root') + (n.priority ? ' p-' + n.priority : '') + lvClass(level[n.id] || 0));
+    const e = el('div', 'node ' + n.status + (hasParent(n.id) ? '' : ' root') + (n.priority ? ' p-' + n.priority : '') + (isToday(n) ? ' today' : '') + lvClass(level[n.id] || 0));
     e.dataset.id = n.id;
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
     const chk = el('button', 'chk'); chk.title = '状態を切り替え';
     e.append(chk, el('div', 'label', n.text || '（無題）'), priBadge(n));
     const own = ownSpan(n), sum = own ? null : summary(n.id);
-    if (own) e.append(el('div', 'dl' + (isLate(n) ? ' late' : ''), '📅 ' + spanText(own)));
-    else if (sum) e.append(el('div', 'dl sum', '📅 ' + spanText(sum)));
+    if (own) e.append(el('div', 'dl' + (isLate(n) ? ' late' : ''), '📅 ' + spanTextW(own)));
+    else if (sum) e.append(el('div', 'dl sum', '📅 ' + spanTextW(sum)));
     const p = progress(n.id);
     if (p) {
       const bar = el('div', 'bar'), b = el('b'), i = el('i');
@@ -904,21 +910,23 @@ function edit(id, isNew = false) {
   const label = e.querySelector('.label'), n = byId[id], before = n.text;
   editing = id;
   label.textContent = n.text;
-  label.contentEditable = 'true';
+  label.contentEditable = 'plaintext-only';
+  if (label.contentEditable !== 'plaintext-only') label.contentEditable = 'true';
   label.focus();
   const r = document.createRange(); r.selectNodeContents(label);
   const s = getSelection(); s.removeAllRanges(); s.addRange(r);
   let cancelled = false;
   const onKey = ev => {
     if (ev.isComposing || ev.keyCode === 229) return;
-    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); label.blur(); }
+    if (endsEdit(ev)) { ev.preventDefault(); label.blur(); }
     else if (ev.key === 'Escape') { cancelled = true; label.blur(); }
     ev.stopPropagation();
   };
   const finish = () => {
     label.removeEventListener('keydown', onKey);
     editing = null;
-    const text = cancelled ? before : label.textContent.trim();
+    const text = cancelled ? before : label.innerText.replace(/ /g, ' ').trim();
+    label.contentEditable = 'false';
     if (isNew && !text) {
       undoStack.pop();
       S.nodes = S.nodes.filter(x => x.id !== id);
@@ -978,6 +986,16 @@ function layout(kind, record = true) {
   renderTree();
   kind === 'outline' ? layoutOutline() : layoutTree();
   renderTree(); fit(); save();
+}
+// 配置を保存 keeps the boxes' current places; 手動配列 brings them back after any auto-arrange or edit.
+let savedTimer = 0;
+function saveManual() {
+  if (!S.nodes.length) return;
+  S.manual = { layout: S.layout, pos: Object.fromEntries(S.nodes.map(n => [n.id, { x: n.x, y: n.y }])) };
+  save();
+  const b = $('bSaveManual');
+  b.textContent = '保存しました ✓'; clearTimeout(savedTimer);
+  savedTimer = setTimeout(() => { b.textContent = '配置を保存'; }, 1500);
 }
 function manualLayout() {
   if (!S.manual || !S.nodes.length) return;
@@ -1480,7 +1498,7 @@ $('gToday').onclick = () => renderGantt(true);
 /* ---------- detail sheet ---------- */
 function fillSheet() {
   const n = byId[sheetId]; if (!n) return;
-  $('sName').value = n.text; $('sStart').value = n.start; $('sEnd').value = n.end; $('sMemo').value = n.memo;
+  $('sName').value = n.text; requestAnimationFrame(fitName); $('sStart').value = n.start; $('sEnd').value = n.end; $('sMemo').value = n.memo;
   for (const b of $('sStatus').children) b.classList.toggle('on', b.dataset.s === n.status);
   for (const b of $('sPri').children) b.classList.toggle('on', b.dataset.p === n.priority);
   const sp = ownSpan(n);
@@ -1512,8 +1530,9 @@ function closeSheet(silent = false) {
   if (!silent) { relayoutIfOutline(); refresh(); }
 }
 const sheetNode = () => byId[sheetId];
-$('sName').addEventListener('input', () => { const n = sheetNode(); if (!n) return; n.text = $('sName').value; refresh(); });
-$('sName').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) e.target.blur(); });
+const fitName = () => { const t = $('sName'); t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; };
+$('sName').addEventListener('input', () => { fitName(); const n = sheetNode(); if (!n) return; n.text = $('sName').value; refresh(); });
+$('sName').addEventListener('keydown', e => { if (endsEdit(e) && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); e.target.blur(); } });
 $('sMemo').addEventListener('input', () => { const n = sheetNode(); if (n) { n.memo = $('sMemo').value; save(); } });
 function onDate(which) {
   const n = sheetNode(); if (!n) return;
@@ -1607,6 +1626,7 @@ $('bAdd').onclick = () => (S.mode === 'tree' && sel && sel.type === 'node') ? ad
 $('bLayout').onclick = () => layout('tree');
 $('bOutline').onclick = () => layout('outline');
 $('bManual').onclick = manualLayout;
+$('bSaveManual').onclick = saveManual;
 $('bFit').onclick = () => fit();
 $('bUndo').onclick = undo;
 $('bHelp').onclick = () => $('help').classList.toggle('hidden');
