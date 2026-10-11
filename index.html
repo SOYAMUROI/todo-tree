@@ -1714,6 +1714,8 @@ function queueCloud() {
 }
 async function flushCloud() {
   if (!sync.ref) return;
+  // a newer version from another device is waiting to be applied: writing now would overwrite it
+  if (sync.pending) { clearTimeout(sync.timer); sync.timer = setTimeout(flushCloud, 1000); return; }
   if (sync.writing) { sync.queued = true; return; }
   const str = contentOf(S);
   if (str === sync.lastSent) { setSync('ok', '同期済み'); return; }
@@ -1735,13 +1737,16 @@ async function flushCloud() {
 }
 const isBusy = () => !!(editing || drag || gd || sheetId || titleEl.isContentEditable);
 function onRemote(snap) {
+  // A snapshot from this device's offline cache can be older than the server (e.g. the PC saved since the
+  // phone was last open). Never treat it as synced, or this device would write its stale copy over the newer one.
+  if (snap.metadata && snap.metadata.fromCache) return;
   if (!snap.exists) {
     // first use on any device: upload what this device has
-    if (!snap.metadata.fromCache && !sync.ready) { sync.ready = true; flushCloud(); }
+    if (!sync.ready) { sync.ready = true; flushCloud(); }
     return;
   }
   const d = snap.data();
-  if (d.client === CLIENT && snap.metadata.hasPendingWrites) return;
+  if (d.client === CLIENT && snap.metadata && snap.metadata.hasPendingWrites) return;
   const remote = normalize({ title: d.title, gscale: d.gscale, nodes: d.tasks || [], edges: d.edges || [],
     layout: d.layout, free: d.free, layoutAt: d.layoutAt, manual: d.manual });
   // take the other device's box positions only when its layout was changed more recently than this one's
@@ -1840,7 +1845,7 @@ function onAuth(u) {
   const { F, db } = fb.api, d = F.doc(db, 'users', u.uid, 'boards', 'main');
   sync.ref = {
     set: data => F.setDoc(d, data).catch(e => { throw { code: fbCode(e) }; }),
-    onSnapshot: (next, err) => F.onSnapshot(d, s => next({ exists: s.exists(), data: () => s.data(), metadata: s.metadata }), err)
+    onSnapshot: (next, err) => F.onSnapshot(d, { includeMetadataChanges: true }, s => next({ exists: s.exists(), data: () => s.data(), metadata: s.metadata }), err)
   };
   setSync('busy', '同期中…');
   fb.unsub = sync.ref.onSnapshot(onRemote, () => setSync('err', '同期が止まりました。再読み込みしてください'));
