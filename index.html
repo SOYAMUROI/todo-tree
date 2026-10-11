@@ -535,6 +535,7 @@ function normalize(s) {
     view: { x: +v.x || 0, y: +v.y || 0, k: +v.k || 1 },
     mode: ['tree', 'list', 'gantt'].includes(s.mode) ? s.mode : 'tree',
     layout: s.layout === 'outline' ? 'outline' : 'tree',
+    free: !!s.free,
     gscale: [32, 12, 4].includes(s.gscale) ? s.gscale : 32
   };
 }
@@ -635,7 +636,6 @@ function moveTask(id, tid, mode) {
   if (at < 0) at = sibs.length;
   sibs.splice(at, 0, byId[id]);
   sibs.forEach((n, i) => { n.order = i; });
-  sync.needLayout = true;
   refresh(); save();
 }
 
@@ -788,8 +788,10 @@ const nodeEl = id => nodesEl.querySelector(`[data-id="${CSS.escape(id)}"]`);
 const toWorld = (cx, cy) => ({ x: (cx - S.view.x) / S.view.k, y: (cy - S.view.y) / S.view.k });
 
 /* ---------- actions ---------- */
+// outline re-aligns itself on every change until the user drags a task somewhere by hand
+const autoOutline = () => S.layout === 'outline' && !S.free;
 function relayoutIfOutline() {
-  if (S.mode === 'tree' && S.layout === 'outline') { renderTree(); layoutOutline(); }
+  if (S.mode === 'tree' && autoOutline()) { renderTree(); layoutOutline(); }
 }
 function addNode(x, y, parent, ports) {
   snapshot();
@@ -802,14 +804,14 @@ function addNode(x, y, parent, ports) {
 }
 function addChild(pid) {
   const p = byId[pid], kids = children(pid).map(c => byId[c]);
-  if (S.layout === 'outline') return addNode(p.x + 40, (kids.length ? Math.max(...kids.map(k => k.y)) : p.y) + 1, pid);
+  if (autoOutline()) return addNode(p.x + 40, (kids.length ? Math.max(...kids.map(k => k.y)) : p.y) + 1, pid);
   const y = p.y + p._h + DEPTH + 70;
   const x = kids.length ? Math.max(...kids.map(k => k.x + (k._w || 120))) + 24 : p.x;
   addNode(x, y, pid);
 }
 function addRoot() {
   if (S.mode !== 'tree') return createQuick(null);
-  if (S.layout === 'outline') return addNode(0, S.nodes.length ? Math.max(...S.nodes.map(n => n.y)) + 1 : 0);
+  if (autoOutline()) return addNode(0, S.nodes.length ? Math.max(...S.nodes.map(n => n.y)) + 1 : 0);
   const w = toWorld(innerWidth / 2, innerHeight / 2);
   addNode(Math.round(w.x - 60), Math.round(w.y));
 }
@@ -820,10 +822,10 @@ function createQuick(pid) {
   const p = pid ? byId[pid] : null, kids = p ? children(pid).map(c => byId[c]) : [];
   const n = { id: uid(), x: 0, y: 0, text: '新しいタスク', status: 'todo', start: '', end: '', memo: '', priority: '' };
   if (p) {
-    n.x = S.layout === 'outline' ? p.x + 40 : (kids.length ? Math.max(...kids.map(k => k.x + (k._w || 120))) + 24 : p.x);
-    n.y = S.layout === 'outline' ? (kids.length ? Math.max(...kids.map(k => k.y)) : p.y) + 1 : p.y + 140;
+    n.x = autoOutline() ? p.x + 40 : (kids.length ? Math.max(...kids.map(k => k.x + (k._w || 120))) + 24 : p.x);
+    n.y = autoOutline() ? (kids.length ? Math.max(...kids.map(k => k.y)) : p.y) + 1 : p.y + 140;
   } else if (S.nodes.length) {
-    if (S.layout === 'outline') n.y = Math.max(...S.nodes.map(m => m.y)) + 1;
+    if (autoOutline()) n.y = Math.max(...S.nodes.map(m => m.y)) + 1;
     else n.x = Math.max(...S.nodes.map(m => m.x + (m._w || 120))) + 60;
   }
   if (S.mode === 'gantt') {
@@ -946,7 +948,7 @@ function layoutOutline() {
 function layout(kind, record = true) {
   if (!S.nodes.length) return;
   if (record) snapshot();
-  S.layout = kind;
+  S.layout = kind; S.free = false;
   renderTree();
   kind === 'outline' ? layoutOutline() : layoutTree();
   renderTree(); fit(); save();
@@ -1088,7 +1090,7 @@ function endPointer(e, cancelled) {
     }
   } else if (d.mode === 'move') {
     d.items.forEach(it => it.el.classList.remove('dragging'));
-    if (d.moved) { undoStack.push(d.before); save(); }
+    if (d.moved) { undoStack.push(d.before); S.free = true; save(); }
     else if (!cancelled) {
       if (sheetId && sheetId !== d.id) openSheet(d.id);
       if (e.pointerType !== 'mouse') tap(e, d.id);
@@ -1543,7 +1545,7 @@ function setMode(m) {
   syncHH();
   if (m === 'tree') {
     renderTree();
-    if (S.layout === 'outline') { layoutOutline(); renderTree(); }
+    if (autoOutline()) { layoutOutline(); renderTree(); }
     else if (sync.needLayout) { layoutTree(); renderTree(); }
     sync.needLayout = false;
     if (!treeFitted) { fit(false); treeFitted = true; }
@@ -1670,10 +1672,10 @@ function applyRemote() {
   if (!sync.pending || isBusy()) return;
   const r = sync.pending; sync.pending = null;
   const pos = Object.fromEntries(S.nodes.map(n => [n.id, n]));
-  let missing = false;
+  const missing = [];
   for (const n of r.nodes) {
     const p = pos[n.id];
-    if (p) { n.x = p.x; n.y = p.y; } else missing = true;
+    if (p) { n.x = p.x; n.y = p.y; } else missing.push(n);
   }
   S.title = r.title; S.gscale = r.gscale; S.nodes = r.nodes; S.edges = r.edges;
   undoStack.length = 0;
@@ -1681,16 +1683,36 @@ function applyRemote() {
   if (sel && sel.type === 'node' && !byId[sel.id]) sel = null;
   if (sel && sel.type === 'edge' && !S.edges.some(e => e.id === sel.id)) sel = null;
   setTitle();
-  if (missing) sync.needLayout = true;
+  // nothing placed on this device yet: arrange everything; otherwise only drop the new tasks in
+  if (missing.length && missing.length === S.nodes.length) sync.needLayout = true;
+  else if (missing.length) placeNew(missing);
   if (S.mode === 'tree') {
     renderTree();
-    if (S.layout === 'outline') { layoutOutline(); renderTree(); }
+    if (autoOutline()) { layoutOutline(); renderTree(); }
     else if (sync.needLayout) { layoutTree(); renderTree(); }
     sync.needLayout = false;
     stats(); updateSelection();
   } else refresh();
   saveLocal();
   setSync('ok', '同期済み');
+}
+// Put tasks that arrived from another device under their parent (or to the right), leaving the rest alone.
+function placeNew(list) {
+  const fresh = new Set(list.map(n => n.id));
+  const placed = S.nodes.filter(n => !fresh.has(n.id));
+  for (const n of list) {
+    const pe = S.edges.find(e => e.to === n.id && !fresh.has(e.from));
+    const p = pe && byId[pe.from];
+    const kids = p ? children(p.id).map(c => byId[c]).filter(k => !fresh.has(k.id)) : [];
+    if (p) {
+      n.x = kids.length ? Math.max(...kids.map(k => k.x + (k._w || 120))) + 24 : p.x;
+      n.y = kids.length ? kids[0].y : p.y + 140;
+    } else {
+      n.x = placed.length ? Math.max(...placed.map(m => m.x + (m._w || 120))) + 60 : 0;
+      n.y = placed.length ? Math.min(...placed.map(m => m.y)) : 0;
+    }
+    fresh.delete(n.id); placed.push(n);
+  }
 }
 // Firebase (home-screen app) -- each account's board lives at users/<uid>/boards/main
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
