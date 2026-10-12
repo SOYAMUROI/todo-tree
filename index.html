@@ -131,6 +131,12 @@ body:not([data-mode=tree]) #vp{display:none}
 .node.root{font-weight:700;font-size:14px;padding-top:10px;padding-bottom:11px}
 .node.today{animation:todayblink 1.2s ease-in-out infinite}
 @keyframes todayblink{50%{border-color:#fff;box-shadow:0 0 22px 4px color-mix(in srgb,var(--c) 85%,transparent),inset 0 0 18px color-mix(in srgb,var(--c) 40%,transparent)}}
+/* past the deadline: faster, red and stronger than today's blink */
+.node.overdue{border-color:var(--late);animation:overdueblink .7s ease-in-out infinite}
+@keyframes overdueblink{
+  0%,100%{box-shadow:0 0 8px color-mix(in srgb,var(--late) 50%,transparent),inset 0 0 10px color-mix(in srgb,var(--late) 20%,transparent)}
+  50%{border-color:#fff;background:color-mix(in srgb,var(--late) 38%,var(--lvc,#0a2850));
+    box-shadow:0 0 30px 8px color-mix(in srgb,var(--late) 90%,transparent),inset 0 0 22px color-mix(in srgb,var(--late) 55%,transparent)}}
 .node.selected{outline:2px solid var(--sel);outline-offset:3px}
 .node.dragging{cursor:grabbing;z-index:2}
 .node.drop{outline:2px dashed var(--sel);outline-offset:4px}
@@ -703,7 +709,7 @@ function renderTree() {
   world.classList.toggle('outline', S.layout === 'outline');
   nodesEl.textContent = '';
   for (const n of S.nodes) {
-    const e = el('div', 'node ' + n.status + (hasParent(n.id) ? '' : ' root') + (n.priority ? ' p-' + n.priority : '') + (isToday(n) ? ' today' : '') + lvClass(level[n.id] || 0));
+    const e = el('div', 'node ' + n.status + (hasParent(n.id) ? '' : ' root') + (n.priority ? ' p-' + n.priority : '') + (isLate(n) ? ' overdue' : isToday(n) ? ' today' : '') + lvClass(level[n.id] || 0));
     e.dataset.id = n.id;
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
     const chk = el('button', 'chk'); chk.title = '状態を切り替え';
