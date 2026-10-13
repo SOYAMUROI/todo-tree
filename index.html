@@ -111,6 +111,9 @@ body:not([data-mode=tree]) #vp{display:none}
 .edge.glow.hot{stroke-width:10;opacity:.3;animation:hotglow 1.6s ease-in-out infinite}
 .edge.flow.hot{stroke:#ffd0d7;opacity:.8}
 .edge.sel{stroke:var(--sel);opacity:1}
+/* 関連: a dashed link between related boxes, outside the parent/child tree */
+.edge.rel{stroke:#a9bfe6;stroke-width:1.6;stroke-dasharray:6 5;opacity:.85}
+.edge.rel.sel{stroke:var(--sel);opacity:1}
 .edge.glow.sel{opacity:.35}
 .hit{fill:none;stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:pointer}
 .end{fill:var(--bg);stroke:var(--line);stroke-width:1.5}
@@ -184,7 +187,11 @@ body:not([data-mode=tree]) #vp{display:none}
 .selbar button{background:rgba(30,80,160,.3);border:1px solid rgba(58,168,255,.2);border-radius:8px;padding:8px 11px;font-size:12px;cursor:pointer;white-space:nowrap}
 .selbar button:hover{border-color:var(--todo)}
 .selbar button.warn{color:#fecaca;border-color:rgba(248,113,113,.4)}
-.selbar.edge button:not([data-a=delete]){display:none}
+.selbar.edge button:not([data-a=delete],[data-a=kind]),.selbar:not(.edge) button[data-a=kind]{display:none}
+.relhint{position:fixed;z-index:26;left:50%;top:calc(var(--hh) + 12px);transform:translateX(-50%);padding:7px 14px;border-radius:9px;
+  background:rgba(6,18,44,.95);border:1px dashed #a9bfe6;font-size:12.5px;white-space:nowrap;pointer-events:none}
+.relhint.hidden{display:none}
+#vp.relating .node{cursor:crosshair}
 
 /* ---------- views (list / gantt) ---------- */
 .view{position:fixed;left:0;right:0;top:var(--hh);bottom:var(--nav);z-index:3;display:none;flex-direction:column}
@@ -404,11 +411,14 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   <div id="gscroll"><div id="gwrap"></div></div>
 </section>
 
+<div class="relhint hidden" id="relhint">関連づける箱をタップ（何もない所で中止）</div>
 <div class="selbar hidden" id="selbar">
   <button data-a="status">● 状態</button>
   <button data-a="rename">✎ 名前</button>
   <button data-a="child">＋ 子</button>
   <button data-a="detail">📅 詳細</button>
+  <button data-a="rel">┄ 関連</button>
+  <button data-a="kind">┄ 点線⇄実線</button>
   <button data-a="delete" class="warn">削除</button>
 </div>
 
@@ -571,6 +581,7 @@ function normalize(s) {
     .map(e => {
       const o = { id: String(e.id ?? uid()), from: String(e.from), to: String(e.to) };
       if (PORTS.includes(e.fp) && PORTS.includes(e.tp)) { o.fp = e.fp; o.tp = e.tp; }
+      if (e.rel) o.rel = true;
       return o;
     });
   const v = s.view || {};
@@ -620,8 +631,9 @@ function undo() {
 }
 
 function index() { byId = Object.fromEntries(S.nodes.map(n => [n.id, n])); }
-const children = id => S.edges.filter(e => e.from === id).map(e => e.to).filter(c => byId[c]);
-const hasParent = id => S.edges.some(e => e.to === id);
+// dashed 関連 links (rel) sit outside the tree: they never make a parent or child
+const children = id => S.edges.filter(e => e.from === id && !e.rel).map(e => e.to).filter(c => byId[c]);
+const hasParent = id => S.edges.some(e => e.to === id && !e.rel);
 
 function progress(id) {
   const seen = new Set([id]); let leaves = 0, done = 0;
@@ -681,7 +693,7 @@ function moveTask(id, tid, mode) {
   snapshot();
   const oldParent = info[id].parent;
   if (oldParent !== newParent) {
-    S.edges = S.edges.filter(e => !(e.from === oldParent && e.to === id));
+    S.edges = S.edges.filter(e => e.rel || !(e.from === oldParent && e.to === id));
     if (newParent && !S.edges.some(e => e.from === newParent && e.to === id)) S.edges.push({ id: uid(), from: newParent, to: id });
   }
   const sibs = (newParent ? children(newParent).map(c => byId[c]) : S.nodes.filter(n => !hasParent(n.id)))
@@ -812,6 +824,12 @@ function renderEdges() {
     }
     const p = edgePath(a, b, e);
     const isSel = sel && sel.type === 'edge' && sel.id === e.id;
+    if (e.rel) {
+      const dim = a.status === 'done' || b.status === 'done' ? ' done' : '';
+      svg.append(mk('path', { d: p.d, class: 'edge rel' + (isSel ? ' sel' : dim) }), mk('path', { d: p.d, class: 'hit', 'data-edge': e.id }));
+      if (isSel && !drag) handles = p;
+      continue;
+    }
     // lines out of an unfinished high-priority task turn red to draw the eye
     const hot = a.priority === 'high' && a.status !== 'done' ? ' hot' : '';
     const cls = (hot || (b.status === 'done' ? ' done' : '')) + (isSel ? ' sel' : '');
@@ -927,6 +945,35 @@ function connect(from, to, fp = 'b', tp = 't') {
   snapshot();
   // bottom-to-top is the default tree link; anything else remembers its ports
   S.edges.push(fp === 'b' && tp === 't' ? { id: uid(), from, to } : { id: uid(), from, to, fp, tp });
+  relayoutIfOutline(); refresh(); save();
+}
+
+// 関連: pick a box, then tap the box it relates to
+let relFrom = null;
+function setRelFrom(id) {
+  relFrom = id;
+  $('relhint').classList.toggle('hidden', !id);
+  vp.classList.toggle('relating', !!id);
+}
+const relPorts = (a, b) => ({ fp: nearestPort(a, { x: b.x + b._w / 2, y: b.y + b._h / 2 }), tp: nearestPort(b, { x: a.x + a._w / 2, y: a.y + a._h / 2 }) });
+function relate(from, to) {
+  if (!byId[from] || !byId[to] || from === to || S.edges.some(e => (e.from === from && e.to === to) || (e.from === to && e.to === from))) return;
+  snapshot();
+  S.edges.push({ id: uid(), from, to, rel: true, ...relPorts(byId[from], byId[to]) });
+  refresh(); save();
+}
+// switch the selected line between a dashed 関連 link and a solid parent/child line
+function toggleKind(eid) {
+  const e = S.edges.find(x => x.id === eid); if (!e) return;
+  if (e.rel && isDescendant(e.to, e.from)) return; // would loop the tree
+  snapshot();
+  if (e.rel) {
+    delete e.rel;
+    if (e.fp === 'b' && e.tp === 't') { delete e.fp; delete e.tp; }
+  } else {
+    e.rel = true;
+    if (!e.fp) Object.assign(e, relPorts(byId[e.from], byId[e.to]));
+  }
   relayoutIfOutline(); refresh(); save();
 }
 
@@ -1072,6 +1119,10 @@ vp.addEventListener('pointerdown', e => {
   if (pts.size > 2) return;
   if (editing) document.activeElement.blur();
   const nEl = t.closest('.node'), w = toWorld(e.clientX, e.clientY);
+  if (relFrom) {
+    const from = relFrom; setRelFrom(null);
+    if (nEl) { drag = { mode: 'none' }; relate(from, nEl.dataset.id); return; }
+  }
   if (t.classList.contains('chk') && nEl) { drag = { mode: 'none' }; cycle(nEl.dataset.id); return; }
   if (t.classList.contains('ehandle') && sel && sel.type === 'edge') {
     drag = { mode: 'rewire', eid: sel.id, end: t.dataset.end, cur: w };
@@ -1193,7 +1244,7 @@ function endPointer(e, cancelled) {
     const nodeChanged = (d.end === 'from' ? edge.from : edge.to) !== nid;
     edge.fp = edge.fp || 'b'; edge.tp = edge.tp || 't';
     if (d.end === 'from') { edge.from = nid; edge.fp = port; } else { edge.to = nid; edge.tp = port; }
-    if (edge.fp === 'b' && edge.tp === 't') { delete edge.fp; delete edge.tp; }
+    if (!edge.rel && edge.fp === 'b' && edge.tp === 't') { delete edge.fp; delete edge.tp; }
     if (nodeChanged) relayoutIfOutline();
     refresh(); save();
   } else if (d.mode === 'link') {
@@ -1242,12 +1293,14 @@ $('selbar').addEventListener('click', e => {
   const a = e.target.closest('button')?.dataset.a;
   if (!a || !sel) return;
   if (a === 'delete') return removeSelected();
+  if (a === 'kind') return toggleKind(sel.id);
   if (sel.type !== 'node') return;
   const id = sel.id;
   if (a === 'status') cycle(id);
   else if (a === 'rename') edit(id);
   else if (a === 'child') addChild(id);
   else if (a === 'detail') openSheet(id);
+  else if (a === 'rel') setRelFrom(id);
 });
 
 /* ---------- list view ---------- */
@@ -1592,6 +1645,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+  if (e.key === 'Escape' && relFrom) { setRelFrom(null); return; }
   if (e.key === 'Escape') { if (sheetId) closeSheet(); else if (sel) { sel = null; updateSelection(); renderEdges(); } return; }
   if (S.mode !== 'tree') return;
   if (e.key === 'f' || e.key === 'F') { fit(); return; }
@@ -1628,6 +1682,7 @@ titleEl.addEventListener('blur', () => {
 
 /* ---------- mode / toolbar ---------- */
 function setMode(m) {
+  setRelFrom(null);
   if (sheetId) closeSheet(true);
   if (editing) document.activeElement.blur();
   S.mode = m; document.body.dataset.mode = m;
@@ -1721,7 +1776,7 @@ const sync = { ref: null, ready: false, writing: false, queued: false, lastSent:
 const contentOf = st => JSON.stringify({
   title: st.title, gscale: st.gscale,
   tasks: st.nodes.map(({ id, text, status, start, end, memo, priority, order, x, y }) => ({ id, text, status, start, end, memo, priority, order: order ?? null, x, y })),
-  edges: st.edges.map(({ id, from, to, fp, tp }) => ({ id, from, to, fp: fp || null, tp: tp || null })),
+  edges: st.edges.map(({ id, from, to, fp, tp, rel }) => ({ id, from, to, fp: fp || null, tp: tp || null, rel: !!rel })),
   layout: st.layout, free: !!st.free, layoutAt: st.layoutAt || 0, manual: st.manual || null
 });
 function setSync(state, text) { const e = $('sync'); e.dataset.s = state; e.textContent = text; }
@@ -1824,7 +1879,7 @@ function placeNew(list) {
   const fresh = new Set(list.map(n => n.id));
   const placed = S.nodes.filter(n => !fresh.has(n.id));
   for (const n of list) {
-    const pe = S.edges.find(e => e.to === n.id && !fresh.has(e.from));
+    const pe = S.edges.find(e => e.to === n.id && !e.rel && !fresh.has(e.from));
     const p = pe && byId[pe.from];
     const kids = p ? children(p.id).map(c => byId[c]).filter(k => !fresh.has(k.id)) : [];
     if (p) {
