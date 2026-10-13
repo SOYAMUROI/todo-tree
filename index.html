@@ -509,7 +509,7 @@ const touchKeys = matchMedia('(pointer: coarse)');
 const endsEdit = ev => ev.key === 'Enter' && !ev.shiftKey && !touchKeys.matches;
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
-let S, byId = {}, sel = null, editing = null, drag = null, listFilter = 'all', listSort = 'tree', treeFitted = false, G = null;
+let S, byId = {}, sel = null, editing = null, editDone = null, drag = null, listFilter = 'all', listSort = 'tree', treeFitted = false, G = null;
 let sheetId = null, sheetBefore = null;
 const undoStack = [];
 
@@ -730,6 +730,8 @@ function syncHH() { document.documentElement.style.setProperty('--hh', $('hdr').
 /* ---------- tree view ---------- */
 const lvClass = d => ' lv' + Math.min(d, 4);
 function renderTree() {
+  // keep what is being typed: a redraw (or a tap on a button that doesn't take focus, as on iPhone) must not drop the edit
+  if (editDone) return editDone();
   index();
   const level = Object.fromEntries(treeOrder().map(o => [o.n.id, o.d]));
   world.classList.toggle('outline', S.layout === 'outline');
@@ -978,6 +980,7 @@ function toggleKind(eid) {
 }
 
 function edit(id, isNew = false) {
+  if (editDone) editDone(); // finish the other box first: it redraws every box
   const e = nodeEl(id); if (!e) return;
   const label = e.querySelector('.label'), n = byId[id], before = n.text;
   editing = id;
@@ -995,6 +998,8 @@ function edit(id, isNew = false) {
     ev.stopPropagation();
   };
   const finish = () => {
+    if (editDone !== finish) return;
+    editDone = null;
     label.removeEventListener('keydown', onKey);
     editing = null;
     const text = cancelled ? before : label.innerText.replace(/ /g, ' ').trim();
@@ -1011,6 +1016,7 @@ function edit(id, isNew = false) {
     relayoutIfOutline(); refresh(); save();
   };
   label.addEventListener('keydown', onKey);
+  editDone = finish;
   label.addEventListener('blur', finish, { once: true });
 }
 
@@ -1117,7 +1123,7 @@ vp.addEventListener('pointerdown', e => {
   try { vp.setPointerCapture(e.pointerId); } catch (_) {}
   if (pts.size === 2) return startPinch();
   if (pts.size > 2) return;
-  if (editing) document.activeElement.blur();
+  if (editDone) editDone();
   const nEl = t.closest('.node'), w = toWorld(e.clientX, e.clientY);
   if (relFrom) {
     const from = relFrom; setRelFrom(null);
@@ -1684,7 +1690,7 @@ titleEl.addEventListener('blur', () => {
 function setMode(m) {
   setRelFrom(null);
   if (sheetId) closeSheet(true);
-  if (editing) document.activeElement.blur();
+  if (editDone) editDone();
   S.mode = m; document.body.dataset.mode = m;
   for (const b of $('viewnav').children) b.classList.toggle('on', b.dataset.m === m);
   syncHH();
