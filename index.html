@@ -81,8 +81,9 @@ button.t.more{padding:4px 9px}
 /* ---------- priority ---------- */
 .pri{--pc:var(--p-low);display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 6px;
   border-radius:9px;font-size:10.5px;font-style:normal;font-weight:700;line-height:1;color:var(--bg);background:var(--pc);flex:none}
-.pri.high{--pc:var(--p-high)} .pri.mid{--pc:var(--p-mid)} .pri.low{--pc:var(--p-low)}
-.node .pri{position:absolute;top:-9px;right:8px;box-shadow:0 0 8px color-mix(in srgb,var(--pc) 60%,transparent)}
+.pri.high{--pc:var(--p-high)} .pri.mid{--pc:var(--p-mid)} .pri.low{--pc:var(--p-low)} .pri.doing{--pc:var(--doing)}
+.node .tags{position:absolute;top:-9px;right:8px;display:flex;gap:4px}
+.node .pri{box-shadow:0 0 8px color-mix(in srgb,var(--pc) 60%,transparent)}
 .node.p-high{box-shadow:0 0 10px color-mix(in srgb,var(--c) 45%,transparent),0 0 0 1px color-mix(in srgb,var(--p-high) 55%,transparent),inset 0 0 12px rgba(56,189,248,.12)}
 .lname .pri{margin-right:7px;vertical-align:1px}
 .gname .pri{margin-left:-2px}
@@ -519,6 +520,14 @@ const mdw = n => `${md(n)}(${WD[dow(n)]})`;
 const spanTextW = sp => sp[0] === sp[1] ? mdw(sp[0]) : `${mdw(sp[0])} → ${mdw(sp[1])}（${sp[1] - sp[0] + 1}日）`;
 const spanText = sp => sp[0] === sp[1] ? md(sp[0]) : `${md(sp[0])} → ${md(sp[1])}（${sp[1] - sp[0] + 1}日）`;
 const priBadge = n => n.priority ? el('i', 'pri ' + n.priority, PRI_LABEL[n.priority]) : '';
+// badges on a box's top edge: 進行中 next to the priority
+function boxTags(n) {
+  if (n.status !== 'doing' && !n.priority) return '';
+  const t = el('div', 'tags');
+  if (n.status === 'doing') t.append(el('i', 'pri doing', '進行中'));
+  t.append(priBadge(n));
+  return t;
+}
 const periodText = n => { const sp = ownSpan(n); return sp ? spanText(sp) : ''; };
 const isToday = n => { const sp = ownSpan(n), T = todayDay(); return n.status !== 'done' && !!sp && sp[0] <= T && T <= sp[1]; };
 const isLate = n => { const sp = ownSpan(n); return n.status !== 'done' && !!sp && sp[1] < todayDay(); };
@@ -718,7 +727,7 @@ function renderTree() {
     e.dataset.id = n.id;
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
     const chk = el('button', 'chk'); chk.title = '状態を切り替え';
-    e.append(chk, el('div', 'label', n.text || '（無題）'), priBadge(n));
+    e.append(chk, el('div', 'label', n.text || '（無題）'), boxTags(n));
     const own = ownSpan(n), sum = own ? null : summary(n.id);
     if (own) e.append(el('div', 'dl' + (isLate(n) ? ' late' : ''), '📅 ' + spanTextW(own)));
     else if (sum) e.append(el('div', 'dl sum', '📅 ' + spanTextW(sum)));
