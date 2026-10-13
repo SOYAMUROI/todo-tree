@@ -1783,8 +1783,11 @@ const contentOf = st => JSON.stringify({
   title: st.title, gscale: st.gscale,
   tasks: st.nodes.map(({ id, text, status, start, end, memo, priority, order, x, y }) => ({ id, text, status, start, end, memo, priority, order: order ?? null, x, y })),
   edges: st.edges.map(({ id, from, to, fp, tp, rel }) => ({ id, from, to, fp: fp || null, tp: tp || null, rel: !!rel })),
-  layout: st.layout, free: !!st.free, layoutAt: st.layoutAt || 0, manual: st.manual || null
+  layout: st.layout, free: !!st.free, layoutAt: st.layoutAt || 0, manual: canonManual(st.manual)
 });
+// Firestore hands maps back with their keys sorted, so compare the saved layout in sorted order too
+// (otherwise this device's own save looks like news from another device)
+const canonManual = m => m ? { layout: m.layout, pos: Object.fromEntries(Object.keys(m.pos || {}).sort().map(k => [k, m.pos[k]])) } : null;
 function setSync(state, text) { const e = $('sync'); e.dataset.s = state; e.textContent = text; }
 function queueCloud() {
   if (!sync.ready) return;
@@ -1827,7 +1830,8 @@ function onRemote(snap) {
     return;
   }
   const d = snap.data();
-  if (d.client === CLIENT && snap.metadata && snap.metadata.hasPendingWrites) return;
+  // this device's own save coming back: nothing new in it
+  if (d.client === CLIENT) { sync.ready = true; return; }
   const remote = normalize({ title: d.title, gscale: d.gscale, nodes: d.tasks || [], edges: d.edges || [],
     layout: d.layout, free: d.free, layoutAt: d.layoutAt, manual: d.manual });
   // take the other device's box positions only when its layout was changed more recently than this one's
@@ -1842,11 +1846,14 @@ function onRemote(snap) {
   if (localDirty) return; // this device's newer edit is about to be written
   sync.lastSent = remoteStr;
   sync.pending = remote;
+  sync.pendingBase = contentOf(S);
   applyRemote();
 }
 function applyRemote() {
   if (!sync.pending || isBusy()) return;
   const r = sync.pending; sync.pending = null;
+  // edited here while it waited (e.g. a name typed into a new box): this device's edit is newer, so it is kept and sent
+  if (contentOf(S) !== sync.pendingBase) { sync.lastSent = null; queueCloud(); return; }
   const missing = [];
   if (!r.hasPos) {
     const pos = Object.fromEntries(S.nodes.map(n => [n.id, n]));
