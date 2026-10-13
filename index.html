@@ -141,7 +141,7 @@ body:not([data-mode=tree]) #vp{display:none}
 .node.dragging{cursor:grabbing;z-index:2}
 .node.drop{outline:2px dashed var(--sel);outline-offset:4px}
 .label{white-space:pre-wrap;word-break:break-word;outline:none;min-height:1.4em}
-.label[contenteditable=true]{cursor:text;user-select:text;-webkit-user-select:text;background:rgba(0,0,0,.3);
+.label:is([contenteditable=true],[contenteditable=plaintext-only]){cursor:text;user-select:text;-webkit-user-select:text;background:rgba(0,0,0,.3);
   border-radius:3px;margin:-2px -4px;padding:2px 4px}
 .dl{font-size:10.5px;color:var(--muted);margin-top:3px;font-weight:400;white-space:nowrap}
 .dl.sum{opacity:.7}
@@ -339,7 +339,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   .lrow{margin-left:calc(var(--d)*14px);gap:8px}
   .lprog{width:58px}
   .help{left:12px;right:12px;max-width:none;bottom:calc(var(--nav) + 12px)}
-  .label[contenteditable=true]{font-size:16px}
+  .label:is([contenteditable=true],[contenteditable=plaintext-only]){font-size:16px}
 }
 </style>
 </head>
