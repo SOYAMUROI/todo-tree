@@ -33,7 +33,7 @@ button{font:inherit;color:inherit}
 header{position:fixed;top:0;left:0;right:0;z-index:20;padding:10px 16px 8px;
   background:linear-gradient(var(--panel),rgba(6,18,44,.82));
   border-bottom:1px solid rgba(58,168,255,.25);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-.top{display:flex;align-items:center;gap:16px}
+.topbar{display:flex;align-items:center;gap:16px}
 .brand{min-width:0}
 .eyebrow{font-size:10px;letter-spacing:.22em;color:var(--muted);font-weight:600}
 h1{margin:2px 0 0;font-size:19px;font-weight:700;letter-spacing:.02em;cursor:text;border-radius:4px;
@@ -68,8 +68,8 @@ button.t.more{padding:4px 9px}
 
 .viewnav{display:inline-flex;margin-left:auto;padding:3px;border-radius:9px;background:rgba(0,0,0,.3);
   border:1px solid rgba(58,168,255,.3)}
-.viewnav button{display:flex;align-items:center;gap:6px;background:transparent;border:0;border-radius:6px;
-  padding:6px 14px;font-size:12.5px;color:var(--muted);cursor:pointer}
+.viewnav button{display:flex;align-items:center;gap:6px;background:transparent;border:0;border-radius:6px;white-space:nowrap;
+  padding:6px 12px;font-size:12.5px;color:var(--muted);cursor:pointer}
 .viewnav button.on{color:#fff;background:rgba(56,189,248,.22)}
 .viewnav svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
@@ -84,14 +84,80 @@ button.t.more{padding:4px 9px}
 .pri.high{--pc:var(--p-high)} .pri.mid{--pc:var(--p-mid)} .pri.low{--pc:var(--p-low)} .pri.doing{--pc:var(--doing)}
 .node .tags{position:absolute;top:-9px;right:8px;display:flex;gap:4px}
 .node .pri{box-shadow:0 0 8px color-mix(in srgb,var(--pc) 60%,transparent)}
-.node.p-high{box-shadow:0 0 10px color-mix(in srgb,var(--c) 45%,transparent),0 0 0 1px color-mix(in srgb,var(--p-high) 55%,transparent),inset 0 0 12px rgba(56,189,248,.12)}
 .lname .pri{margin-right:7px;vertical-align:1px}
 .gname .pri{margin-left:-2px}
 .legend .pri{margin-left:2px}
 .chip.sort{margin-left:auto}
-#sPri button[data-p=high].on{background:color-mix(in srgb,var(--p-high) 35%,transparent)}
-#sPri button[data-p=mid].on{background:color-mix(in srgb,var(--p-mid) 35%,transparent)}
-#sPri button[data-p=low].on{background:color-mix(in srgb,var(--p-low) 35%,transparent)}
+#sPri button[data-p=top].on{background:color-mix(in srgb,var(--t-top) 40%,transparent)}
+#sPri button[data-p=high].on{background:color-mix(in srgb,var(--t-high) 40%,transparent)}
+#sPri button[data-p=mid].on{background:color-mix(in srgb,var(--t-mid) 40%,transparent)}
+#sPri button[data-p=low].on{background:color-mix(in srgb,var(--t-low) 40%,transparent)}
+
+/* ---------- priority score: 最優先 red, 高 orange, 通常 blue, 低 grey ---------- */
+:root{--t-top:#ff5d73;--t-high:#fb923c;--t-mid:#60a5fa;--t-low:#8fa3c4}
+.tier{--pc:var(--t-mid);display:inline-flex;align-items:center;gap:3px;height:18px;padding:0 7px;border-radius:9px;font-size:10.5px;
+  font-style:normal;font-weight:700;line-height:1;color:var(--bg);background:var(--pc);flex:none;white-space:nowrap}
+.tier.top{--pc:var(--t-top)} .tier.high{--pc:var(--t-high)} .tier.mid{--pc:var(--t-mid)} .tier.low{--pc:var(--t-low)}
+.tier.plan{background:rgba(0,0,0,.35);color:#c9d6f0;border:1px solid rgba(201,214,240,.5)}
+.tier.pick{--pc:#fde68a}
+.node .tier{box-shadow:0 0 8px color-mix(in srgb,var(--pc) 55%,transparent)}
+.lname .tier{margin-right:7px;vertical-align:1px}
+.gname .tier{margin-left:-2px}
+.legend .tier{margin-left:2px}
+.node.t-top{border-width:2px;box-shadow:0 0 0 1px var(--t-top),0 0 18px color-mix(in srgb,var(--t-top) 55%,transparent),inset 0 0 12px rgba(56,189,248,.12)}
+.node.t-high{box-shadow:0 0 0 1px color-mix(in srgb,var(--t-high) 80%,transparent),0 0 12px color-mix(in srgb,var(--t-high) 40%,transparent),inset 0 0 12px rgba(56,189,248,.12)}
+.node.t-low{opacity:.72}
+.node.plan-later,.node.plan-hold{border-style:dashed}
+.node.plan-drop{opacity:.3;border-style:dotted}
+.node.plan-drop .label{text-decoration:line-through}
+.node.t-low:hover,.node.plan-drop:hover{opacity:.9}
+
+/* map filter: matches stay bright, their parents stay visible, the rest fades */
+.mapfilter{position:fixed;z-index:6;left:16px;top:calc(var(--hh) + 10px);display:flex;gap:6px;max-width:calc(100% - 32px);
+  overflow-x:auto;scrollbar-width:none;padding:2px}
+.mapfilter::-webkit-scrollbar{display:none}
+body:not([data-mode=tree]) .mapfilter{display:none}
+.mapfilter .chip{background:rgba(6,18,44,.92);flex:none}
+.node.f-dim{opacity:.1!important;animation:none!important}
+.node.f-path{opacity:.55!important;animation:none!important}
+.edge.fdim,.end.fdim{opacity:.06!important}
+
+/* ---------- focus ---------- */
+body[data-mode=focus] #focusView{display:flex}
+#focusBody{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.fsel{font:inherit;font-size:12px;color:var(--text);background:rgba(0,0,0,.3);border:1px solid rgba(58,168,255,.35);border-radius:6px;padding:6px 8px;max-width:46vw}
+.fsec{font-size:11px;letter-spacing:.18em;color:var(--muted);font-weight:600;margin-top:8px}
+.fcard{--tc:var(--t-mid);padding:12px 14px 12px 16px;border-radius:8px;background:color-mix(in srgb,var(--tc) 8%,rgba(8,26,62,.92));
+  border:1px solid color-mix(in srgb,var(--tc) 45%,transparent);border-left:4px solid var(--tc)}
+.fcard.top{--tc:var(--t-top)} .fcard.high{--tc:var(--t-high)} .fcard.low{--tc:var(--t-low)}
+.fcard.picked{box-shadow:0 0 0 1px rgba(253,230,138,.35),0 0 18px rgba(253,230,138,.12)}
+.fhead{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);min-width:0}
+.fscore{font-variant-numeric:tabular-nums;color:var(--text);font-weight:700;font-size:12px}
+.fproj{margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fname{font-size:15px;font-weight:600;margin:6px 0 4px;word-break:break-word}
+.fmeta{font-size:12px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+.fmeta .late{color:var(--late)}
+.fwhy{margin:8px 0 0;padding:0 0 0 18px;font-size:12px;line-height:1.7;color:#b9c9ea}
+.fact{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.fact .t{padding:7px 12px}
+.fact .t.on,#sPick.on{background:rgba(253,230,138,.2);border-color:#fde68a;color:#fff}
+.fempty{color:var(--muted);font-size:12.5px;padding:4px 2px}
+.fmore{align-self:center}
+details.fother summary{cursor:pointer;color:var(--muted);font-size:12px;padding:6px 2px}
+.fmini{display:flex;gap:8px;align-items:center;font-size:12.5px;padding:8px 10px;border-radius:6px;background:rgba(8,26,62,.7);margin-top:6px;cursor:pointer}
+
+/* ---------- priority inputs in the detail sheet ---------- */
+.sscore{float:right;color:var(--text);font-weight:700}
+.why{margin:8px 0 0;padding:8px 10px 8px 26px;font-size:12px;line-height:1.7;color:#b9c9ea;background:rgba(0,0,0,.22);border-radius:6px}
+.why:empty{display:none}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.seg.n5{display:flex;width:100%}
+.seg.n5 button{flex:1;padding:6px 0;min-width:0}
+.seg.n5 button:first-child{flex:1.7;white-space:nowrap}
+#sPlan button{padding:7px 10px}
+.seg.wrap{flex-wrap:wrap}
+.sheet select{width:100%;font:inherit;font-size:14px;color:var(--text);background:rgba(0,0,0,.3);border:1px solid rgba(58,168,255,.35);border-radius:6px;padding:7px 8px}
+#sPick{margin-top:12px;width:100%}
 
 /* ---------- tree canvas ---------- */
 #vp{position:fixed;inset:0;z-index:1;touch-action:none;background-color:var(--bg);
@@ -315,6 +381,8 @@ body[data-mode=list] #listView,body[data-mode=gantt] #ganttView{display:flex}
 .help.hidden{display:none}
 kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,.5);border-radius:3px;color:var(--text)}
 
+@media (max-width:1100px){.eyebrow,.meter{display:none}}
+
 /* ---------- touch / phone ---------- */
 @media (pointer:coarse){
   .port{--o:-9px;--s:17px}
@@ -327,7 +395,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   :root{--nav:calc(62px + env(safe-area-inset-bottom))}
   header{padding:calc(8px + env(safe-area-inset-top)) 12px 8px;backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--panel)}
   .eyebrow{display:none}
-  .top{gap:10px}
+  .topbar{gap:10px}
   .brand{flex:1}
   h1{font-size:17px;max-width:none}
   .stats{font-size:11px;gap:6px}
@@ -359,15 +427,17 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
 <body data-mode="tree">
 <div id="vp"><div id="world"><svg id="edges"></svg><div id="nodes"></div><svg id="ehandles"></svg></div></div>
 <div class="vignette"></div>
+<div class="mapfilter" id="mapFilter"></div>
 
 <header id="hdr">
-  <div class="top">
+  <div class="topbar">
     <div class="brand">
       <div class="eyebrow">TASK ARCHITECTURE</div>
       <h1 id="title" title="クリックして名前を変更">TODO Tree</h1>
     </div>
     <div class="stats"><span id="statText">0 / 0</span><span class="meter"><i id="meter"></i></span><button class="sync" id="sync" data-s="off" title="同期の設定">この端末のみ</button><button class="t more" id="bMore" aria-expanded="false" title="ツールバーを開く / 閉じる"><span>ツール</span> ▾</button></div>
     <nav class="viewnav" id="viewnav">
+      <button data-m="focus"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg><span>フォーカス</span></button>
       <button data-m="tree"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-4h12v4"/></svg><span>ツリー</span></button>
       <button data-m="list"><svg viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg><span>一覧</span></button>
       <button data-m="gantt"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="6" y="6" width="8" height="3" rx="1"/><rect x="10" y="11" width="9" height="3" rx="1"/><rect x="7" y="16" width="6" height="2.5" rx="1"/></svg><span>ガント</span></button>
@@ -391,7 +461,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
       <span style="color:var(--todo)"><i class="dot" style="background:var(--todo)"></i><span style="color:var(--muted)">未着手</span></span>
       <span style="color:var(--doing)"><i class="dot" style="background:var(--doing)"></i><span style="color:var(--muted)">進行中</span></span>
       <span style="color:var(--done)"><i class="dot" style="background:var(--done)"></i><span style="color:var(--muted)">完了</span></span>
-      <span>優先度 <i class="pri high">高</i><i class="pri mid">中</i><i class="pri low">低</i></span>
+      <span>優先度 <i class="tier top">⚑ 最優先</i><i class="tier high">高</i><i class="tier mid">通常</i><i class="tier low">低</i></span>
       <span>階層<i class="lvsw lv0"></i>親<i class="lvsw lv1"></i>子<i class="lvsw lv2"></i>孫<i class="lvsw lv3"></i>ひ孫</span>
     </div>
   </div>
@@ -411,6 +481,16 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   <div id="gscroll"><div id="gwrap"></div></div>
 </section>
 
+<section id="focusView" class="view">
+  <div class="vbar">
+    <select class="fsel" id="fSort" aria-label="並び順"><option value="rec">おすすめ順</option><option value="imp">重要度順</option><option value="urg">緊急度順</option><option value="due">期限順</option><option value="effort">作業時間順</option></select>
+    <select class="fsel" id="fProj" aria-label="プロジェクト"></select>
+    <select class="fsel" id="fCount" aria-label="表示件数"><option value="3">3件</option><option value="5">5件</option><option value="10">10件</option><option value="0">すべて</option></select>
+    <span class="vhint">完了・後でやる・保留・不要は、おすすめから外れます</span>
+  </div>
+  <div class="lscroll"><div id="focusBody"></div></div>
+</section>
+
 <div class="relhint hidden" id="relhint">関連づける箱をタップ（何もない所で中止）</div>
 <div class="selbar hidden" id="selbar">
   <button data-a="status">● 状態</button>
@@ -428,8 +508,18 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   <textarea id="sName" rows="1" autocomplete="off"></textarea>
   <label>状態</label>
   <div class="seg" id="sStatus"><button data-s="todo">未着手</button><button data-s="doing">進行中</button><button data-s="done">完了</button></div>
-  <label>優先度</label>
-  <div class="seg" id="sPri"><button data-p="">なし</button><button data-p="low">低</button><button data-p="mid">中</button><button data-p="high">高</button></div>
+  <label>優先度 <span class="sscore" id="sScore"></span></label>
+  <div class="seg wrap" id="sPri"><button data-p="">自動</button><button data-p="top">最優先</button><button data-p="high">高</button><button data-p="mid">通常</button><button data-p="low">低</button></div>
+  <ul class="why" id="sWhy"></ul>
+  <div class="pgrid">
+    <div><label>重要度</label><div class="seg n5" id="sImp" data-f="imp"><button data-v="">–</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button></div></div>
+    <div><label>波及効果</label><div class="seg n5" id="sImpact" data-f="impact"><button data-v="">–</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button></div></div>
+    <div><label>緊急度 <span id="sUrgAuto"></span></label><div class="seg n5" id="sUrg" data-f="urg"><button data-v="">自動</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button></div></div>
+    <div><label for="sEffort">作業時間</label><select id="sEffort"><option value="">未設定</option><option value="15m">15分</option><option value="30m">30分</option><option value="1h">1時間</option><option value="2h">2時間</option><option value="half">半日</option><option value="1d">1日</option><option value="days">数日</option></select></div>
+  </div>
+  <label>実行の判断</label>
+  <div class="seg wrap" id="sPlan"><button data-v="">未判断</button><button data-v="do">実行する</button><button data-v="later">後でやる</button><button data-v="hold">保留</button><button data-v="drop">不要</button></div>
+  <button class="t" id="sPick">☀ 今日やる</button>
   <label>期間</label>
   <div class="dates">
     <div><label for="sStart">開始日</label><input type="date" id="sStart"></div>
@@ -476,9 +566,12 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   「ツリー」「縦並び」 … 整列　「保存」 … 今のボックスの位置を保存　「手動」 … 保存した位置に戻す<br>
   ノードを選択 → 下のバーで状態・子追加・詳細・削除<br>
   <kbd>Tab</kbd> 子追加　<kbd>Space</kbd> 状態　<kbd>Del</kbd> 削除　<kbd>D</kbd> 詳細<br>
-  <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> … 優先度 高・中・低（<kbd>0</kbd> で解除）<br>
+  <kbd>1</kbd>〜<kbd>4</kbd> … 優先度 最優先・高・通常・低（<kbd>0</kbd> で自動）<br>
+  上の「最重要」「期限が近い」などのボタン … マップを絞り込み<br>
   <kbd>Shift</kbd>+ドラッグ … 配下ごと移動<br>
   背景ドラッグ … 移動　ホイール / 2本指 … ズーム<br>
+  <b>フォーカス</b>：優先スコアの高い順に今日やることを表示。「☀ 今日やる」で選ぶ<br>
+  <b>優先スコア</b>：重要度×0.5＋緊急度×0.3＋波及効果×0.2（100点満点）。緊急度は期限から自動<br>
   <b>ガント</b>：詳細で開始日・終了日を入れると表示<br>
   <b>色</b>：枠線＝状態、箱の塗り＝階層（親・子・孫・ひ孫）<br>
   <b>同期</b>：右上の「ログインして同期」から、PCとスマホで同じアカウントにログイン<br>
@@ -495,7 +588,22 @@ const LABEL = { todo: '未着手', doing: '進行中', done: '完了' };
 const PORTS = ['t', 'b', 'l', 'r', 'tl', 'tr', 'bl', 'br'];
 const PORT_N = { t: [0, -1], b: [0, 1], l: [-1, 0], r: [1, 0], tl: [-.7, -.7], tr: [.7, -.7], bl: [-.7, .7], br: [.7, .7] };
 const OPP = { t: 'b', b: 't', l: 'r', r: 'l', tl: 'br', tr: 'bl', bl: 'tr', br: 'tl' };
-const PRI = ['high', 'mid', 'low'], PRI_LABEL = { high: '高', mid: '中', low: '低' }, PRI_RANK = { high: 0, mid: 1, low: 2, '': 3 };
+// ---- priority (Phase 1) ----
+// n.priority is the user's own call (empty = computed); older data used high/mid/low, which keep working.
+const TIERS = ['top', 'high', 'mid', 'low'], PRI = TIERS;
+const TIER_LABEL = { top: '最優先', high: '高', mid: '通常', low: '低' };
+const TIER_RANK = { top: 0, high: 1, mid: 2, low: 3 };
+const EFFORT = { '15m': ['15分', 15], '30m': ['30分', 30], '1h': ['1時間', 60], '2h': ['2時間', 120], half: ['半日', 240], '1d': ['1日', 480], days: ['数日', 1440] };
+const PLAN_LABEL = { do: '実行する', later: '後でやる', hold: '保留', drop: '不要' };
+// The score formula lives here so it can be tuned in one place.
+// Each factor is 1-5; the weighted sum is turned into a score out of 100.
+const SCORE = {
+  weights: { importance: 0.5, urgency: 0.3, impact: 0.2 },
+  // unset values count as average, and no deadline counts as a little below average rather than as "never"
+  defaults: { importance: 3, impact: 3, urgencyNoDeadline: 2 },
+  tiers: [[80, 'top'], [65, 'high'], [45, 'mid'], [0, 'low']]
+};
+const lvl5 = v => (Number.isInteger(v) && v >= 1 && v <= 5 ? v : null);
 const DEPTH = 0, DAY = 864e5, DATE = /^\d{4}-\d{2}-\d{2}$/;
 const $ = id => document.getElementById(id);
 const vp = $('vp'), world = $('world'), svg = $('edges'), hsvg = $('ehandles'), nodesEl = $('nodes');
@@ -529,18 +637,76 @@ const WD = '日月火水木金土';
 const mdw = n => `${md(n)}(${WD[dow(n)]})`;
 const spanTextW = sp => sp[0] === sp[1] ? mdw(sp[0]) : `${mdw(sp[0])} → ${mdw(sp[1])}（${sp[1] - sp[0] + 1}日）`;
 const spanText = sp => sp[0] === sp[1] ? md(sp[0]) : `${md(sp[0])} → ${md(sp[1])}（${sp[1] - sp[0] + 1}日）`;
-const priBadge = n => n.priority ? el('i', 'pri ' + n.priority, PRI_LABEL[n.priority]) : '';
-// badges on a box's top edge: 進行中 next to the priority
+// priority badge: 通常 stays quiet; 最優先 also carries a flag so it never relies on colour alone
+function priBadge(n) {
+  if (n.status === 'done') return '';
+  const { tier } = prio(n);
+  return tier === 'mid' ? '' : el('i', 'tier ' + tier, (tier === 'top' ? '⚑ ' : '') + TIER_LABEL[tier]);
+}
+// badges on a box's top edge: 今日 / 後でやる etc. / 進行中 / priority
 function boxTags(n) {
-  if (n.status !== 'doing' && !n.priority) return '';
+  const pick = isPicked(n) && n.status !== 'done', plan = n.status !== 'done' && n.plan && n.plan !== 'do' ? n.plan : '';
+  const pb = priBadge(n);
+  if (n.status !== 'doing' && !pb && !pick && !plan) return '';
   const t = el('div', 'tags');
+  if (pick) t.append(el('i', 'tier pick', '☀ 今日'));
+  if (plan) t.append(el('i', 'tier plan', PLAN_LABEL[plan]));
   if (n.status === 'doing') t.append(el('i', 'pri doing', '進行中'));
-  t.append(priBadge(n));
+  t.append(pb);
   return t;
+}
+function nodeFlags(n) {
+  if (n.status === 'done') return '';
+  const t = prio(n).tier;
+  return (t === 'mid' ? '' : ' t-' + t) + (n.plan && n.plan !== 'do' ? ' plan-' + n.plan : '');
 }
 const periodText = n => { const sp = ownSpan(n); return sp ? spanText(sp) : ''; };
 const isToday = n => { const sp = ownSpan(n), T = todayDay(); return n.status !== 'done' && !!sp && sp[0] <= T && T <= sp[1]; };
 const isLate = n => { const sp = ownSpan(n); return n.status !== 'done' && !!sp && sp[1] < todayDay(); };
+const todayStr = () => fromDay(todayDay());
+const isPicked = n => !!n.today && n.today === todayStr();
+const togglePick = n => { n.today = isPicked(n) ? '' : todayStr(); };
+// urgency from the deadline (end date): past or today 5, within 2 days 4, a week 3, a month 2, later 1
+function autoUrgency(n) {
+  const sp = ownSpan(n); if (!sp) return null;
+  const left = sp[1] - todayDay();
+  return left <= 0 ? 5 : left <= 2 ? 4 : left <= 7 ? 3 : left <= 30 ? 2 : 1;
+}
+function prio(n) {
+  const imp = n.imp ?? SCORE.defaults.importance, impact = n.impact ?? SCORE.defaults.impact;
+  const au = autoUrgency(n), urg = n.urg ?? au ?? SCORE.defaults.urgencyNoDeadline, w = SCORE.weights;
+  const score = Math.round((imp * w.importance + urg * w.urgency + impact * w.impact) / 5 * 100);
+  const auto = SCORE.tiers.find(([min]) => score >= min)[1];
+  return { score, auto, tier: n.priority || auto, manual: !!n.priority, imp, impact, urg, au };
+}
+// Why a task ranks where it does, built only from what is registered (nothing is guessed).
+function reasons(n, p = prio(n)) {
+  const out = [], sp = ownSpan(n);
+  if (p.manual) out.push(`手動で「${TIER_LABEL[n.priority]}」に設定（計算では${p.score}点・${TIER_LABEL[p.auto]}）`);
+  if (n.imp == null) out.push('重要度は未設定（標準の3で計算）');
+  else if (n.imp >= 4) out.push(`重要度が高い（${n.imp}/5）`);
+  else if (n.imp <= 2) out.push(`重要度は低め（${n.imp}/5）`);
+  else out.push(`重要度は標準（${n.imp}/5）`);
+  if (n.urg != null) out.push(`緊急度を手動で${n.urg}/5に設定`);
+  if (sp) {
+    const left = sp[1] - todayDay();
+    out.push(left < 0 ? `期限を${-left}日過ぎている` : left === 0 ? '今日が期限' : left <= 7 ? `期限まであと${left}日` : `期限は${md(sp[1])}（あと${left}日）`);
+  } else if (n.urg == null) out.push('期限なし（緊急度は標準の2で計算）');
+  if (n.impact != null && n.impact >= 4) out.push(`波及効果が大きい（${n.impact}/5）`);
+  const rel = S.edges.filter(e => e.rel && (e.from === n.id || e.to === n.id)).length;
+  if (rel) out.push(`関連づけたタスクが${rel}件ある`);
+  const kids = children(n.id).length;
+  if (kids) out.push(`配下にタスクが${kids}件ある`);
+  if (n.effort) out.push(`作業時間は約${EFFORT[n.effort][0]}` + (EFFORT[n.effort][1] <= 30 ? '（すぐ終わる）' : ''));
+  if (isPicked(n)) out.push('今日やると選択済み');
+  return out;
+}
+const effortMin = n => (n.effort ? EFFORT[n.effort][1] : Infinity);
+// おすすめ順: priority band, then score, then the quicker task first
+function recCmp(a, b) {
+  const pa = prio(a), pb = prio(b);
+  return TIER_RANK[pa.tier] - TIER_RANK[pb.tier] || pb.score - pa.score || effortMin(a) - effortMin(b);
+}
 
 /* ---------- data ---------- */
 function sample() {
@@ -566,6 +732,12 @@ function sample() {
   const d = add('公開', r);
   add('ドメイン取得', d, 'todo', 12, 12, 'mid');
   add('告知ページ', d, 'todo', 13, 16, 'low');
+  nodes.forEach(n => { n.priority = ''; });
+  const set = (text, f) => Object.assign(nodes.find(n => n.text === text), f);
+  set('ワイヤーフレーム', { imp: 5, impact: 4, effort: '2h' });
+  set('ログイン機能', { imp: 4, impact: 4, effort: '1d' });
+  set('配色・フォントを決める', { imp: 2, effort: '1h' });
+  set('ドメイン取得', { imp: 3, effort: '15m' });
   return { title: 'TODO Tree', nodes, edges, view: { x: 0, y: 0, k: 1 }, mode: 'tree', layout: 'tree', gscale: 32, fresh: true };
 }
 function normalize(s) {
@@ -574,6 +746,8 @@ function normalize(s) {
     status: STATUS.includes(n.status) ? n.status : 'todo',
     start: DATE.test(n.start) ? n.start : '', end: DATE.test(n.end) ? n.end : '', memo: String(n.memo ?? ''),
     priority: PRI.includes(n.priority) ? n.priority : '',
+    imp: lvl5(n.imp), impact: lvl5(n.impact), urg: lvl5(n.urg),
+    effort: EFFORT[n.effort] ? n.effort : '', plan: PLAN_LABEL[n.plan] ? n.plan : '', today: DATE.test(n.today) ? n.today : '',
     order: typeof n.order === 'number' && isFinite(n.order) ? n.order : null
   }));
   const ids = new Set(nodes.map(n => n.id));
@@ -588,7 +762,7 @@ function normalize(s) {
   return {
     title: String(s.title || 'TODO Tree').slice(0, 60), nodes, edges,
     view: { x: +v.x || 0, y: +v.y || 0, k: +v.k || 1 },
-    mode: ['tree', 'list', 'gantt'].includes(s.mode) ? s.mode : 'tree',
+    mode: ['tree', 'list', 'gantt', 'focus'].includes(s.mode) ? s.mode : 'tree',
     layout: s.layout === 'outline' ? 'outline' : 'tree',
     free: !!s.free,
     layoutAt: +s.layoutAt || (s.free ? 1 : 0),
@@ -710,7 +884,8 @@ function refresh() {
   index();
   if (S.mode === 'tree') renderTree();
   else if (S.mode === 'list') renderList();
-  else renderGantt();
+  else if (S.mode === 'gantt') renderGantt();
+  else renderFocus();
   stats(); updateSelection();
 }
 function stats() {
@@ -729,15 +904,52 @@ function syncHH() { document.documentElement.style.setProperty('--hh', $('hdr').
 
 /* ---------- tree view ---------- */
 const lvClass = d => ' lv' + Math.min(d, 4);
+// ---- map filter ----
+let mapFilter = 'all', fState = null;
+const MAP_FILTERS = [['all', 'すべて'], ['top', '最重要'], ['soon', '期限が近い'], ['today', '今日やる'], ['unsorted', '未整理']];
+function filterMatch(n, f) {
+  if (n.status === 'done') return false;
+  if (f === 'top') { const t = prio(n).tier; return (t === 'top' || t === 'high') && n.plan !== 'drop'; }
+  if (f === 'soon') { const sp = ownSpan(n); return !!sp && sp[1] - todayDay() <= 3; }
+  if (f === 'today') return isPicked(n) || isToday(n);
+  if (f === 'unsorted') return n.imp == null && !n.priority && !n.effort;
+  return true;
+}
+function mapFilterState() {
+  if (mapFilter === 'all') return null;
+  const st = Object.fromEntries(S.nodes.map(n => [n.id, 'dim']));
+  const parentOf = id => S.edges.find(e => e.to === id && !e.rel)?.from;
+  for (const n of S.nodes) {
+    if (!filterMatch(n, mapFilter)) continue;
+    st[n.id] = 'hit';
+    // the boxes above a match stay visible so its place in the tree still reads
+    for (let p = parentOf(n.id), guard = 0; p && st[p] === 'dim' && guard < 64; p = parentOf(p), guard++) st[p] = 'path';
+  }
+  return st;
+}
+function renderMapFilter() {
+  const bar = $('mapFilter'); bar.textContent = '';
+  for (const [k, label] of MAP_FILTERS) {
+    const c = el('button', 'chip' + (mapFilter === k ? ' on' : ''), label);
+    c.dataset.f = k;
+    if (k !== 'all') c.append(el('b', '', S.nodes.filter(n => filterMatch(n, k)).length));
+    bar.append(c);
+  }
+}
+$('mapFilter').addEventListener('click', e => {
+  const f = e.target.closest('.chip')?.dataset.f;
+  if (f) { mapFilter = f; renderTree(); }
+});
 function renderTree() {
   // keep what is being typed: a redraw (or a tap on a button that doesn't take focus, as on iPhone) must not drop the edit
   if (editDone) return editDone();
   index();
   const level = Object.fromEntries(treeOrder().map(o => [o.n.id, o.d]));
+  fState = mapFilterState(); renderMapFilter();
   world.classList.toggle('outline', S.layout === 'outline');
   nodesEl.textContent = '';
   for (const n of S.nodes) {
-    const e = el('div', 'node ' + n.status + (hasParent(n.id) ? '' : ' root') + (n.priority ? ' p-' + n.priority : '') + (isLate(n) ? ' overdue' : isToday(n) ? ' today' : '') + lvClass(level[n.id] || 0));
+    const e = el('div', 'node ' + n.status + (hasParent(n.id) ? '' : ' root') + nodeFlags(n) + (isLate(n) ? ' overdue' : isToday(n) ? ' today' : '') + lvClass(level[n.id] || 0) + (fState && fState[n.id] !== 'hit' ? ' f-' + fState[n.id] : ''));
     e.dataset.id = n.id;
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
     const chk = el('button', 'chk'); chk.title = '状態を切り替え';
@@ -826,20 +1038,21 @@ function renderEdges() {
     }
     const p = edgePath(a, b, e);
     const isSel = sel && sel.type === 'edge' && sel.id === e.id;
+    const fd = fState && (fState[e.from] === 'dim' || fState[e.to] === 'dim') ? ' fdim' : '';
     if (e.rel) {
       const dim = a.status === 'done' || b.status === 'done' ? ' done' : '';
-      svg.append(mk('path', { d: p.d, class: 'edge rel' + (isSel ? ' sel' : dim) }), mk('path', { d: p.d, class: 'hit', 'data-edge': e.id }));
+      svg.append(mk('path', { d: p.d, class: 'edge rel' + (isSel ? ' sel' : dim) + fd }), mk('path', { d: p.d, class: 'hit', 'data-edge': e.id }));
       if (isSel && !drag) handles = p;
       continue;
     }
     // lines out of an unfinished high-priority task turn red to draw the eye
-    const hot = a.priority === 'high' && a.status !== 'done' ? ' hot' : '';
-    const cls = (hot || (b.status === 'done' ? ' done' : '')) + (isSel ? ' sel' : '');
+    const hot = a.status !== 'done' && prio(a).tier === 'top' ? ' hot' : '';
+    const cls = (hot || (b.status === 'done' ? ' done' : '')) + (isSel ? ' sel' : '') + fd;
     svg.append(
       mk('path', { d: p.d, class: 'edge glow' + cls }),
       mk('path', { d: p.d, class: 'edge' + cls }),
-      mk('path', { d: p.d, class: 'edge flow' + hot }),
-      mk('circle', { cx: p.tx, cy: p.ty, r: 3.5, class: 'end' + (hot || (b.status === 'done' ? ' done' : '')) }),
+      mk('path', { d: p.d, class: 'edge flow' + hot + fd }),
+      mk('circle', { cx: p.tx, cy: p.ty, r: 3.5, class: 'end' + (hot || (b.status === 'done' ? ' done' : '')) + fd }),
       mk('path', { d: p.d, class: 'hit', 'data-edge': e.id })
     );
     if (isSel && !drag) handles = p;
@@ -1328,7 +1541,7 @@ function renderList() {
   const canDrag = listFilter === 'all' && listSort === 'tree';
   const level = Object.fromEntries(order.map(o => [o.n.id, o.d]));
   const rows = listSort === 'pri'
-    ? order.map(o => ({ ...o, d: 0 })).sort((a, b) => PRI_RANK[a.n.priority] - PRI_RANK[b.n.priority])
+    ? order.map(o => ({ ...o, d: 0 })).sort((a, b) => (a.n.status === 'done') - (b.n.status === 'done') || recCmp(a.n, b.n))
     : order;
   for (const { n, d } of rows) {
     if (listFilter !== 'all' && n.status !== listFilter) continue;
@@ -1338,6 +1551,7 @@ function renderList() {
     row.style.setProperty('--d', listFilter === 'all' ? Math.min(d, 8) : 0);
     const main = el('div', 'lmain'), meta = el('div', 'lmeta');
     meta.append(el('span', 'st', LABEL[n.status]));
+    if (n.status !== 'done') meta.append(el('span', '', `優先 ${prio(n).score}点`));
     const own = ownSpan(n), sum = own ? null : summary(n.id);
     if (own) meta.append(el('span', 'per', '📅 ' + spanText(own) + (isLate(n) ? ' 期限切れ' : '')));
     else if (sum) meta.append(el('span', 'per', '📅 ' + spanText(sum)));
@@ -1579,12 +1793,115 @@ $('gScale').addEventListener('click', e => {
 });
 $('gToday').onclick = () => renderGantt(true);
 
+/* ---------- focus ---------- */
+let focusSort = 'rec', focusProj = '', focusCount = 3;
+const FOCUS_SORTS = {
+  rec: recCmp,
+  imp: (a, b) => prio(b).imp - prio(a).imp || recCmp(a, b),
+  urg: (a, b) => prio(b).urg - prio(a).urg || recCmp(a, b),
+  due: (a, b) => (ownSpan(a) || [0, 1e9])[1] - (ownSpan(b) || [0, 1e9])[1] || recCmp(a, b),
+  effort: (a, b) => effortMin(a) - effortMin(b) || recCmp(a, b)
+};
+// the chain of boxes above a task, top first
+function chainOf(id, info) {
+  const out = [];
+  for (let p = info[id]?.parent, guard = 0; p && guard < 64; p = info[p]?.parent, guard++) out.unshift(p);
+  return out;
+}
+function renderFocus() {
+  index();
+  const info = Object.fromEntries(treeOrder().map(o => [o.n.id, o]));
+  const projects = S.nodes.filter(n => !hasParent(n.id) && children(n.id).length).sort(sibCmp());
+  if (!projects.some(r => r.id === focusProj)) focusProj = '';
+  const ps = $('fProj'); ps.textContent = '';
+  ps.append(new Option('すべてのプロジェクト', ''));
+  for (const r of projects) ps.append(new Option(r.text || '（無題）', r.id));
+  ps.value = focusProj; $('fSort').value = focusSort; $('fCount').value = String(focusCount);
+  const inProj = n => !focusProj || n.id === focusProj || chainOf(n.id, info)[0] === focusProj;
+  // what you act on are the leaves: a box with sub-tasks is a project or a group
+  const open = S.nodes.filter(n => n.status !== 'done' && !children(n.id).length && inProj(n));
+  const parked = n => ['later', 'hold', 'drop'].includes(n.plan);
+  const picked = open.filter(isPicked).sort(FOCUS_SORTS[focusSort]);
+  const cands = open.filter(n => !isPicked(n) && !parked(n)).sort(FOCUS_SORTS[focusSort]);
+  const decided = open.filter(n => !isPicked(n) && parked(n)).sort(recCmp);
+  const body = $('focusBody'); body.textContent = '';
+  body.append(el('div', 'fsec', `今日やる（${picked.length}）`));
+  if (!picked.length) body.append(el('div', 'fempty', 'まだ選ばれていません。下のおすすめで「☀ 今日やる」を押すと、ここに並びます。'));
+  for (const n of picked) body.append(focusCard(n, info));
+  const shown = focusCount ? cands.slice(0, focusCount) : cands;
+  body.append(el('div', 'fsec', `おすすめ（${cands.length}件中 ${shown.length}件）`));
+  if (!cands.length) body.append(el('div', 'fempty', S.nodes.length ? '取り組むタスクはありません。' : 'タスクがありません。「＋ タスク」から追加してください。'));
+  for (const n of shown) body.append(focusCard(n, info));
+  if (shown.length < cands.length) {
+    const more = el('button', 't fmore', `もっと見る（あと${cands.length - shown.length}件）`);
+    more.dataset.a = 'more'; body.append(more);
+  }
+  if (decided.length) {
+    const d = el('details', 'fother');
+    d.append(el('summary', '', `後でやる・保留・不要（${decided.length}）`));
+    for (const n of decided) {
+      const m = el('div', 'fmini'); m.dataset.id = n.id; m.dataset.a = 'open';
+      m.append(el('i', 'tier plan', PLAN_LABEL[n.plan]), el('span', '', n.text || '（無題）'));
+      d.append(m);
+    }
+    body.append(d);
+  }
+}
+function focusCard(n, info) {
+  const p = prio(n), sp = ownSpan(n), picked = isPicked(n);
+  const c = el('div', 'fcard ' + p.tier + (picked ? ' picked' : '')); c.dataset.id = n.id;
+  const head = el('div', 'fhead');
+  head.append(el('i', 'tier ' + p.tier, (p.tier === 'top' ? '⚑ ' : '') + TIER_LABEL[p.tier]), el('span', 'fscore', `${p.score}点`));
+  const chain = chainOf(n.id, info).map(id => byId[id].text || '（無題）');
+  if (chain.length) head.append(el('span', 'fproj', chain.join(' › ')));
+  const meta = el('div', 'fmeta');
+  if (sp) {
+    const left = sp[1] - todayDay();
+    meta.append(el('span', left < 0 ? 'late' : '', `📅 ${mdw(sp[1])}` + (left < 0 ? `（${-left}日超過）` : left === 0 ? '（今日）' : `（あと${left}日）`)));
+  } else meta.append(el('span', '', '📅 期限なし'));
+  meta.append(el('span', '', '⏱ ' + (n.effort ? EFFORT[n.effort][0] : '作業時間 未設定')));
+  if (n.status === 'doing') meta.append(el('span', '', '● 進行中'));
+  const why = el('ul', 'fwhy');
+  for (const r of reasons(n, p)) why.append(el('li', '', r));
+  const act = el('div', 'fact');
+  const pk = el('button', 't' + (picked ? ' on' : ''), picked ? '☀ 今日やる（解除）' : '☀ 今日やる'); pk.dataset.a = 'pick';
+  const dn = el('button', 't', '✓ 完了'); dn.dataset.a = 'done';
+  const op = el('button', 't', '詳細'); op.dataset.a = 'open';
+  act.append(pk, dn, op);
+  c.append(head, el('div', 'fname', n.text || '（無題）'), meta, why, act);
+  return c;
+}
+$('focusBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-a]'); if (!b) return;
+  if (b.dataset.a === 'more') { focusCount = 0; return renderFocus(); }
+  const id = b.closest('[data-id]')?.dataset.id, n = byId[id]; if (!n) return;
+  if (b.dataset.a === 'open') return openSheet(id);
+  snapshot();
+  if (b.dataset.a === 'pick') togglePick(n);
+  else if (b.dataset.a === 'done') n.status = 'done';
+  refresh(); save();
+});
+$('fSort').onchange = e => { focusSort = e.target.value; renderFocus(); };
+$('fProj').onchange = e => { focusProj = e.target.value; renderFocus(); };
+$('fCount').onchange = e => { focusCount = +e.target.value; renderFocus(); };
+
 /* ---------- detail sheet ---------- */
 function fillSheet() {
   const n = byId[sheetId]; if (!n) return;
   $('sName').value = n.text; requestAnimationFrame(fitName); $('sStart').value = n.start; $('sEnd').value = n.end; $('sMemo').value = n.memo;
   for (const b of $('sStatus').children) b.classList.toggle('on', b.dataset.s === n.status);
   for (const b of $('sPri').children) b.classList.toggle('on', b.dataset.p === n.priority);
+  const p = prio(n);
+  $('sScore').textContent = n.status === 'done' ? '完了' : `${p.score}点・${TIER_LABEL[p.tier]}${p.manual ? '（手動）' : ''}`;
+  const why = $('sWhy'); why.textContent = '';
+  if (n.status !== 'done') for (const r of reasons(n, p)) why.append(el('li', '', r));
+  for (const g of document.querySelectorAll('#sheet .seg[data-f]'))
+    for (const b of g.children) b.classList.toggle('on', b.dataset.v === String(n[g.dataset.f] ?? ''));
+  $('sUrgAuto').textContent = p.au != null ? `（期限から ${p.au}）` : '（期限なし）';
+  $('sEffort').value = n.effort || '';
+  for (const b of $('sPlan').children) b.classList.toggle('on', b.dataset.v === (n.plan || ''));
+  $('sPick').classList.toggle('on', isPicked(n));
+  $('sPick').textContent = isPicked(n) ? '☀ 今日やる（選択中・押すと解除）' : '☀ 今日やる';
   const sp = ownSpan(n);
   $('sDur').textContent = sp ? `${sp[1] - sp[0] + 1}日間` + (isLate(n) ? '（期限切れ）' : '') : '期間未設定';
 }
@@ -1639,6 +1956,16 @@ $('sPri').addEventListener('click', e => {
   if (!b || !n) return;
   n.priority = b.dataset.p; fillSheet(); refresh(); save();
 });
+for (const g of document.querySelectorAll('#sheet .seg[data-f]')) g.addEventListener('click', e => {
+  const b = e.target.closest('button'), n = sheetNode(); if (!b || !n) return;
+  n[g.dataset.f] = b.dataset.v ? +b.dataset.v : null; fillSheet(); refresh(); save();
+});
+$('sEffort').addEventListener('change', () => { const n = sheetNode(); if (!n) return; n.effort = $('sEffort').value; fillSheet(); refresh(); save(); });
+$('sPlan').addEventListener('click', e => {
+  const b = e.target.closest('button'), n = sheetNode(); if (!b || !n) return;
+  n.plan = b.dataset.v; fillSheet(); refresh(); save();
+});
+$('sPick').onclick = () => { const n = sheetNode(); if (!n) return; togglePick(n); fillSheet(); refresh(); save(); };
 $('sClose').onclick = () => closeSheet();
 $('sDel').onclick = () => { const id = sheetId; closeSheet(true); removeNode(id); };
 $('sChild').onclick = () => { const id = sheetId; closeSheet(); addChildAny(id); };
@@ -1662,7 +1989,7 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'Enter') { e.preventDefault(); edit(sel.id); }
     else if (e.key === ' ') { e.preventDefault(); cycle(sel.id); }
     else if (e.key === 'd' || e.key === 'D') openSheet(sel.id);
-    else if ('0123'.includes(e.key) && e.key.length === 1) setPriority(sel.id, ['', 'high', 'mid', 'low'][+e.key]);
+    else if ('01234'.includes(e.key) && e.key.length === 1) setPriority(sel.id, ['', 'top', 'high', 'mid', 'low'][+e.key]);
   }
 });
 
@@ -1701,7 +2028,8 @@ function setMode(m) {
     sync.needLayout = false;
     if (!treeFitted) { fit(false); treeFitted = true; }
   } else if (m === 'list') renderList();
-  else renderGantt(true);
+  else if (m === 'gantt') renderGantt(true);
+  else renderFocus();
   stats(); updateSelection(); save();
 }
 $('viewnav').addEventListener('click', e => {
@@ -1781,7 +2109,9 @@ const CLIENT = uid();
 const sync = { ref: null, ready: false, writing: false, queued: false, lastSent: null, pending: null, timer: 0, needLayout: false };
 const contentOf = st => JSON.stringify({
   title: st.title, gscale: st.gscale,
-  tasks: st.nodes.map(({ id, text, status, start, end, memo, priority, order, x, y }) => ({ id, text, status, start, end, memo, priority, order: order ?? null, x, y })),
+  tasks: st.nodes.map(({ id, text, status, start, end, memo, priority, order, x, y, imp, impact, urg, effort, plan, today }) => ({
+    id, text, status, start, end, memo, priority, order: order ?? null, x, y,
+    imp: imp ?? null, impact: impact ?? null, urg: urg ?? null, effort: effort || '', plan: plan || '', today: today || '' })),
   edges: st.edges.map(({ id, from, to, fp, tp, rel }) => ({ id, from, to, fp: fp || null, tp: tp || null, rel: !!rel })),
   layout: st.layout, free: !!st.free, layoutAt: st.layoutAt || 0, manual: canonManual(st.manual)
 });
