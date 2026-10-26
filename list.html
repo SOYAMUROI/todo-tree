@@ -73,10 +73,13 @@ main.slide-l{animation:slidel .18s ease-out} main.slide-r{animation:slider .18s 
 .item.c-green{background:var(--c-green)} .item.c-gray{background:var(--c-gray)}
 .circle{flex:none;position:relative;width:28px;height:28px;border-radius:50%;border:1.5px solid #a8acb1;background:transparent;padding:0}
 .circle::before{content:"";position:absolute;inset:-12px}
-.item.checking .circle,.circle.on{background:var(--accent);border-color:var(--accent)}
-.item.checking .circle::after,.circle.on::after{content:"";position:absolute;left:9px;top:4px;width:6px;height:12px;
+.circle.on{background:var(--accent);border-color:var(--accent)}
+/* checked: stays in the list, greyed out, until the bin button throws it away */
+.item.checked,.item.checked[class*=c-]{background:var(--c-gray)}
+.item.checked .circle{background:#a8acb1;border-color:#a8acb1}
+.item.checked .circle::after,.circle.on::after{content:"";position:absolute;left:9px;top:4px;width:6px;height:12px;
   border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-.item.checking .txt{color:var(--muted);text-decoration:line-through}
+.item.checked .txt{color:var(--muted)}
 .txt{flex:1;min-width:0;font-size:17px;line-height:1.45;white-space:pre-wrap;word-break:break-word;transition:color .2s}
 .memo{font-size:13px;color:var(--muted);margin-top:2px;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .where{font-size:12px;color:var(--accent);margin-bottom:1px}
@@ -175,7 +178,7 @@ textarea.in{resize:none;overflow:hidden;line-height:1.45}
 </header>
 <main id="main"></main>
 
-<button class="trash" id="bTrash" aria-label="完了したタスク"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg><b id="trashN"></b></button>
+<button class="trash" id="bTrash" aria-label="チェックしたタスクをゴミ箱へ"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg><b id="trashN"></b></button>
 <button class="fab" id="fab" aria-label="タスクを追加"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
 
 <div class="toast" id="toast" hidden><span id="toastT"></span><button id="toastU">元に戻す</button></div>
@@ -207,7 +210,7 @@ function seed() {
   const task = { id: uid(), name: 'タスク', sections: [sec('TODAY'), sec('明日やること')] };
   const prio = { id: uid(), name: '優先度A（重要度高）', sections: [sec('TODAY')] };
   const items = [];
-  const add = (l, s, text, color = '') => items.push({ id: uid(), list: l.id, sec: l.sections[s].id, text, done: false, doneAt: 0, color, memo: '', order: items.length });
+  const add = (l, s, text, color = '') => items.push({ id: uid(), list: l.id, sec: l.sections[s].id, text, done: false, doneAt: 0, trash: false, color, memo: '', order: items.length });
   add(task, 0, '契約書作成');
   add(task, 0, '銀行入金', 'pink');
   add(task, 0, '開発見積もり再送', 'pink');
@@ -230,7 +233,8 @@ function normalize(s) {
   const items = (s.items || []).filter(i => i && i.id != null && lists.some(l => l.id === String(i.list))).map(i => {
     const list = String(i.list), l = lists.find(l => l.id === list);
     return { id: String(i.id), list, sec: listOf[i.sec] === l ? String(i.sec) : l.sections[0].id, text: String(i.text ?? ''),
-      done: !!i.done, doneAt: +i.doneAt || 0, color: i.color in COLORS ? i.color : '', memo: String(i.memo || ''), order: +i.order || 0 };
+      // before the bin button existed, a checked task went straight into the bin
+      done: !!i.done, doneAt: +i.doneAt || 0, trash: 'trash' in i ? !!i.trash : !!i.done, color: i.color in COLORS ? i.color : '', memo: String(i.memo || ''), order: +i.order || 0 };
   });
   return { lists, items, cur: lists.some(l => l.id === s.cur) ? s.cur : lists[0].id,
     collapsed: s.collapsed || {}, lastSec: s.lastSec || {}, addTop: !!s.addTop };
@@ -244,8 +248,9 @@ function commit() { saveLocal(); render(); queueCloud(); }
 
 const curList = () => S.lists.find(l => l.id === S.cur);
 const byOrder = (a, b) => a.order - b.order;
-const openIn = sec => S.items.filter(i => i.sec === sec && !i.done).sort(byOrder);
-const openCount = list => S.items.filter(i => i.list === list && !i.done).length;
+const openIn = sec => S.items.filter(i => i.sec === sec && !i.trash).sort(byOrder);
+const openCount = list => S.items.filter(i => i.list === list && !i.trash && !i.done).length;
+const checkedIn = list => S.items.filter(i => i.list === list && !i.trash && i.done);
 function nextOrder(sec) {
   const o = S.items.filter(i => i.sec === sec).map(i => i.order);
   return !o.length ? 0 : S.addTop ? Math.min(...o) - 1 : Math.max(...o) + 1;
@@ -268,7 +273,7 @@ $('toastU').onclick = () => {
 };
 
 /* ---------- render ---------- */
-function render() { renderTabs(); renderMain(); $('trashN').textContent = S.items.filter(i => i.list === S.cur && i.done).length || ''; }
+function render() { renderTabs(); renderMain(); $('trashN').textContent = checkedIn(S.cur).length || ''; }
 function renderTabs() {
   const tabs = S.lists.map(l => {
     const b = el('button', 'tab' + (l.id === S.cur ? ' on' : ''));
@@ -283,10 +288,10 @@ function renderTabs() {
   if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 function row(it, where) {
-  const r = el('div', 'item' + (it.color ? ' c-' + it.color : ''));
+  const r = el('div', 'item' + (it.color ? ' c-' + it.color : '') + (it.done ? ' checked' : ''));
   r.dataset.id = it.id;
-  const c = el('button', 'circle'); c.setAttribute('aria-label', '完了にする');
-  c.onclick = e => { e.stopPropagation(); complete(it.id, r); };
+  const c = el('button', 'circle'); c.setAttribute('aria-label', it.done ? 'チェックを外す' : 'チェックする');
+  c.onclick = e => { e.stopPropagation(); toggleCheck(it.id); };
   const t = el('div', 'txt');
   if (where) t.append(el('div', 'where', where));
   t.append(document.createTextNode(it.text));
@@ -307,7 +312,7 @@ function renderMain() {
     fold.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
     const toggle = () => { if (S.collapsed[x.id]) delete S.collapsed[x.id]; else S.collapsed[x.id] = true; saveLocal(); renderMain(); };
     fold.onclick = toggle;
-    const cnt = el('span', 'scount', open.length); cnt.onclick = toggle;
+    const cnt = el('span', 'scount', open.filter(i => !i.done).length); cnt.onclick = toggle;
     h.append(name, cnt, fold);
     const box = el('div', 'items');
     if (open.length) box.append(...open.map(it => row(it)));
@@ -321,7 +326,7 @@ function renderMain() {
 }
 function renderSearch() {
   const q = query.toLowerCase();
-  const hits = S.items.filter(i => !i.done && (i.text + '\n' + i.memo).toLowerCase().includes(q));
+  const hits = S.items.filter(i => !i.trash && (i.text + '\n' + i.memo).toLowerCase().includes(q));
   const out = [el('div', 'rhead', `「${query}」 ${hits.length}件`)];
   for (const l of S.lists) for (const x of l.sections) {
     for (const it of hits.filter(i => i.sec === x.id).sort(byOrder)) out.push(row(it, `${l.name} › ${x.name}`));
@@ -335,19 +340,23 @@ function switchList(id, dir = 0) {
   if (dir) { mainEl.classList.remove('slide-l', 'slide-r'); void mainEl.offsetWidth; mainEl.classList.add(dir > 0 ? 'slide-l' : 'slide-r'); }
 }
 
-/* ---------- complete / restore ---------- */
-function complete(id, r) {
-  r.classList.add('checking');
-  setTimeout(() => {
-    const it = findItem(id); if (!it || it.done) return;
-    const snap = snapshot();
-    it.done = true; it.doneAt = Date.now();
-    commit(); toast('完了しました', snap);
-  }, 420);
+/* ---------- check / bin / restore ---------- */
+function toggleCheck(id) {
+  const it = findItem(id); if (!it) return;
+  it.done = !it.done; it.doneAt = it.done ? Date.now() : 0;
+  commit();
+}
+// the bin button: checked tasks of this list go into the bin; with none checked it shows what is in there
+function binChecked() {
+  const done = checkedIn(S.cur);
+  if (!done.length) return openTrash();
+  const snap = snapshot(), now = Date.now();
+  for (const it of done) { it.trash = true; it.doneAt = now; }
+  commit(); toast(`${done.length}件をゴミ箱に入れました`, snap);
 }
 function restore(id) {
   const it = findItem(id); if (!it) return;
-  it.done = false; it.doneAt = 0; it.order = nextOrder(it.sec); commit();
+  it.trash = false; it.done = false; it.doneAt = 0; it.order = nextOrder(it.sec); commit();
 }
 
 /* ---------- sheets ---------- */
@@ -410,10 +419,10 @@ function editItem(id) {
     box.append(el('label', '', '色'), swatches(it.color, c => { it.color = c; touched(); }));
     const memo = field(box, 'メモ', el('textarea', 'in')); memo.value = it.memo; memo.rows = 2;
     memo.oninput = () => { it.memo = memo.value; autosize(memo); touched(); };
-    const acts = el('div', 'acts'), del = el('button', 'b warn', '削除'), done = el('button', 'b pri', '完了にする');
+    const acts = el('div', 'acts'), del = el('button', 'b warn', '削除'), save = el('button', 'b pri', '保存');
     del.onclick = () => { const snap = snapshot(); S.items = S.items.filter(i => i !== it); closeSheet(); commit(); toast('削除しました', snap); };
-    done.onclick = () => { const snap = snapshot(); it.done = true; it.doneAt = Date.now(); closeSheet(); commit(); toast('完了しました', snap); };
-    acts.append(del, done); box.append(acts);
+    save.onclick = closeSheet;
+    acts.append(del, save); box.append(acts);
     requestAnimationFrame(() => { autosize(name); autosize(memo); });
   }, () => {
     // a task whose name was erased is removed
@@ -483,9 +492,9 @@ function editList(id, focusSec) {
 
 function openTrash() {
   const l = curList();
-  openSheet(`完了したタスク（${l.name}）`, box => {
+  openSheet(`ゴミ箱（${l.name}）`, box => {
     const paint = () => {
-      const done = S.items.filter(i => i.list === l.id && i.done).sort((a, b) => b.doneAt - a.doneAt);
+      const done = S.items.filter(i => i.list === l.id && i.trash).sort((a, b) => b.doneAt - a.doneAt);
       const rows = done.map(it => {
         const r = el('div', 'done-row'), c = el('button', 'circle on'); c.setAttribute('aria-label', '未完了に戻す');
         c.onclick = () => { restore(it.id); paint(); };
@@ -494,13 +503,13 @@ function openTrash() {
         r.append(c, el('div', 'txt', it.text), x);
         return r;
       });
-      if (!done.length) rows.push(el('p', 'note', '完了したタスクはありません。'));
+      if (!done.length) rows.push(el('p', 'note', 'ゴミ箱は空です。チェックを入れたタスクは、ゴミ箱ボタンを押すとここに入ります。'));
       else rows.unshift(el('p', 'note', '○をタップすると未完了に戻ります。'));
-      const acts = el('div', 'acts'), all = el('button', 'b warn', '完了済みをすべて削除');
+      const acts = el('div', 'acts'), all = el('button', 'b warn', 'ゴミ箱を空にする');
       all.disabled = !done.length;
       all.onclick = () => {
-        if (!confirm(`完了済みの${done.length}件を削除します。よろしいですか？`)) return;
-        const snap = snapshot(); S.items = S.items.filter(i => !(i.list === l.id && i.done)); commit(); paint();
+        if (!confirm(`ゴミ箱の${done.length}件を完全に削除します。よろしいですか？`)) return;
+        const snap = snapshot(); S.items = S.items.filter(i => !(i.list === l.id && i.trash)); commit(); paint();
         toast('削除しました', snap);
       };
       acts.append(all);
@@ -557,9 +566,10 @@ function openDrawer() {
   });
   const add = el('button', 'dl sub', '＋ 新しいリスト'); add.onclick = () => { closeDrawer(); newList(); };
   const edit = el('button', 'dl sub', '✎ 今のリストを編集'); edit.onclick = () => { closeDrawer(); editList(S.cur); };
+  const bin = el('button', 'dl sub', '🗑 ゴミ箱の中を見る'); bin.onclick = () => { closeDrawer(); openTrash(); };
   const tree = el('a', 'dl sub', '↗ TODO Tree（ツリー表示）を開く'); tree.href = 'index.html'; tree.style.textDecoration = 'none';
   const foot = el('div', 'dfoot'), pill = el('span', 'pill'); pill.dataset.role = 'sync'; foot.append(pill);
-  drawer.replaceChildren(el('h2', '', 'リスト'), ...rows, add, edit, el('hr', 'hr'), tree, foot);
+  drawer.replaceChildren(el('h2', '', 'リスト'), ...rows, add, edit, bin, el('hr', 'hr'), tree, foot);
   paintSync();
   drawer.hidden = false; scrim.hidden = false;
 }
@@ -598,7 +608,7 @@ function addFromComposer() {
   const l = curList();
   // added to the top: keep the typed order by placing the last line first
   for (const text of S.addTop ? [...lines].reverse() : lines)
-    S.items.push({ id: uid(), list: l.id, sec: comp.sec, text, done: false, doneAt: 0, color: comp.color, memo: '', order: nextOrder(comp.sec) });
+    S.items.push({ id: uid(), list: l.id, sec: comp.sec, text, done: false, doneAt: 0, trash: false, color: comp.color, memo: '', order: nextOrder(comp.sec) });
   S.lastSec[l.id] = comp.sec; delete S.collapsed[comp.sec];
   cText.value = ''; autosize(cText); $('cSend').disabled = true;
   commit();
@@ -702,7 +712,7 @@ mainEl.addEventListener('touchend', e => {
 $('bMenu').onclick = openDrawer;
 $('bSearch').onclick = openSearch;
 $('bSet').onclick = openSettings;
-$('bTrash').onclick = openTrash;
+$('bTrash').onclick = binChecked;
 $('fab').onclick = openComposer;
 
 /* ---------- cloud sync (PC <-> phone) ---------- */
@@ -711,7 +721,7 @@ const CLIENT = uid();
 const sync = { ref: null, ready: false, writing: false, queued: false, lastSent: null, pending: null, pendingBase: null, timer: 0, state: 'off', text: 'この端末のみ' };
 const contentOf = s => JSON.stringify({
   lists: s.lists.map(({ id, name, sections }) => ({ id, name, sections: sections.map(({ id, name }) => ({ id, name })) })),
-  items: s.items.map(({ id, list, sec, text, done, doneAt, color, memo, order }) => ({ id, list, sec, text, done, doneAt, color, memo, order }))
+  items: s.items.map(({ id, list, sec, text, done, doneAt, trash, color, memo, order }) => ({ id, list, sec, text, done, doneAt, trash, color, memo, order }))
 });
 function setSync(state, text) { sync.state = state; sync.text = text; paintSync(); }
 function paintSync() {
