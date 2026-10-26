@@ -1,9 +1,11 @@
 // Offline support: keep the app shell cached so the home-screen app opens without a connection.
 // Bump CACHE when shipping changes to the shell files.
-const CACHE = 'todo-tree-v22';
+const CACHE = 'todo-tree-v23';
 const SHELL = [
   './',
   './index.html',
+  './list.html',
+  './list.webmanifest',
   './manifest.webmanifest',
   './firebase-config.js',
   './icons/icon-192.png',
@@ -32,7 +34,7 @@ self.addEventListener('fetch', e => {
   const sameOrigin = url.origin === self.location.origin;
 
   // Page and config: network first so updates arrive, cache as the offline fallback.
-  if (req.mode === 'navigate' || (sameOrigin && /\/(index\.html|firebase-config\.js)?$/.test(url.pathname))) {
+  if (req.mode === 'navigate' || (sameOrigin && /\/(index\.html|list\.html|firebase-config\.js)?$/.test(url.pathname))) {
     e.respondWith(
       fetch(req)
         .then(res => { if (res.ok) put(req, res.clone()); return res; })

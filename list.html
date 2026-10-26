@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="TODOリスト">
+<title>TODOリスト</title>
+<link rel="manifest" href="list.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<style>
+:root{
+  --bg:#ffffff;--text:#1f2328;--muted:#9aa0a6;--line:#e8e8ea;--accent:#4fb3a6;--accent-ink:#ffffff;
+  --btn:#ffffff;--shadow:0 4px 14px rgba(0,0,0,.08);--panel:#ffffff;--scrim:rgba(0,0,0,.28);--warn:#e5484d;
+  --c-pink:#fcecfb;--c-yellow:#fff5d1;--c-blue:#e5f0ff;--c-green:#e3f6ee;--c-gray:#f1f1f3;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#111315;--text:#e8eaed;--muted:#8a9096;--line:#26292d;--btn:#1c1f22;--shadow:0 4px 14px rgba(0,0,0,.5);
+    --panel:#1c1f22;--scrim:rgba(0,0,0,.55);--c-pink:#3a2535;--c-yellow:#3a3420;--c-blue:#1f2d40;--c-green:#1d3329;--c-gray:#2a2d31;
+    color-scheme:dark}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text)}
+body{font-family:-apple-system,"Hiragino Sans","Segoe UI","Yu Gothic UI","Meiryo",sans-serif;min-height:100vh;
+  padding-bottom:calc(140px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;cursor:pointer}
+svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+[hidden]{display:none!important}
+
+/* ---------- header ---------- */
+header{position:sticky;top:0;z-index:10;background:var(--bg);padding:calc(10px + env(safe-area-inset-top)) 0 6px}
+.top{display:flex;align-items:center;gap:12px;padding:0 18px}
+.round{flex:none;width:46px;height:46px;border-radius:50%;border:0;background:var(--btn);box-shadow:var(--shadow);
+  display:flex;align-items:center;justify-content:center;position:relative}
+.round .dot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--warn)}
+.grow{flex:1}
+.search{flex:1;display:flex;align-items:center;gap:6px;height:42px;padding:0 6px 0 14px;border-radius:21px;background:var(--btn);box-shadow:var(--shadow)}
+.search input{flex:1;min-width:0;border:0;background:none;font:inherit;font-size:16px;color:var(--text);outline:none}
+.search button{border:0;background:none;color:var(--muted);font-size:18px;padding:4px 8px}
+.tabs{display:flex;gap:10px;overflow-x:auto;padding:14px 18px 8px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;display:flex;align-items:center;gap:10px;max-width:72vw;height:40px;padding:0 16px;border-radius:20px;
+  border:1px solid var(--line);background:var(--btn);box-shadow:var(--shadow);font-size:16px;white-space:nowrap}
+.tab .tn{overflow:hidden;text-overflow:ellipsis}
+.tab .tc{color:var(--muted)}
+.tab.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tab.on .tc{color:var(--accent-ink);opacity:.85}
+.tab.add{padding:0 14px;color:var(--muted)}
+
+/* ---------- sections and tasks ---------- */
+main{padding:0 0 0 18px;max-width:760px;margin:0 auto}
+main.slide-l{animation:slidel .18s ease-out} main.slide-r{animation:slider .18s ease-out}
+@keyframes slidel{from{transform:translateX(24px);opacity:.4}} @keyframes slider{from{transform:translateX(-24px);opacity:.4}}
+.sec{margin-top:8px;margin-bottom:22px}
+.shead{display:flex;align-items:center;gap:8px;padding:10px 18px 12px 0;border-bottom:1px solid var(--line)}
+.sname{flex:1;min-width:0;border:0;background:none;padding:0;text-align:left;color:var(--accent);font-size:19px;font-weight:700;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scount{color:var(--muted);font-size:17px;font-variant-numeric:tabular-nums}
+.sfold{border:0;background:none;color:var(--muted);padding:4px;display:flex}
+.sfold svg{width:20px;height:20px;transition:transform .15s;transform:rotate(90deg)}
+.sec.closed .sfold svg{transform:none}
+.sec.closed .items{display:none}
+.sec.drop .shead{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.item{position:relative;display:flex;align-items:center;gap:16px;min-height:58px;margin-left:-18px;padding:10px 18px;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:pointer;background:var(--bg)}
+.item::after{content:"";position:absolute;left:62px;right:0;bottom:0;border-bottom:1px solid var(--line)}
+.item.c-pink{background:var(--c-pink)} .item.c-yellow{background:var(--c-yellow)} .item.c-blue{background:var(--c-blue)}
+.item.c-green{background:var(--c-green)} .item.c-gray{background:var(--c-gray)}
+.circle{flex:none;position:relative;width:28px;height:28px;border-radius:50%;border:1.5px solid #a8acb1;background:transparent;padding:0}
+.circle::before{content:"";position:absolute;inset:-12px}
+.item.checking .circle,.circle.on{background:var(--accent);border-color:var(--accent)}
+.item.checking .circle::after,.circle.on::after{content:"";position:absolute;left:9px;top:4px;width:6px;height:12px;
+  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.item.checking .txt{color:var(--muted);text-decoration:line-through}
+.txt{flex:1;min-width:0;font-size:17px;line-height:1.45;white-space:pre-wrap;word-break:break-word;transition:color .2s}
+.memo{font-size:13px;color:var(--muted);margin-top:2px;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.where{font-size:12px;color:var(--accent);margin-bottom:1px}
+.item.dragging{z-index:30;box-shadow:0 10px 28px rgba(0,0,0,.22);border-radius:10px;margin-left:0;cursor:grabbing}
+.item.dragging::after{display:none}
+.ph{margin-left:-18px;background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:8px}
+.empty{color:var(--muted);font-size:14px;padding:16px 0}
+.items:has(.ph) .empty{display:none}
+.addsec{display:block;margin:6px 0 0;border:1px dashed var(--line);background:none;color:var(--muted);border-radius:10px;padding:12px 16px;font-size:15px;width:calc(100% - 18px)}
+.rhead{color:var(--accent);font-size:14px;font-weight:700;padding:14px 0 8px;border-bottom:1px solid var(--line)}
+
+/* ---------- floating buttons ---------- */
+.fab{position:fixed;z-index:12;right:max(20px,calc(50% - 360px));bottom:calc(26px + env(safe-area-inset-bottom));width:64px;height:64px;border-radius:50%;border:0;
+  background:var(--accent);color:#fff;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 50%,transparent);display:flex;align-items:center;justify-content:center}
+.fab svg{width:30px;height:30px;stroke-width:2.4}
+.trash{position:fixed;z-index:12;left:max(20px,calc(50% - 360px));bottom:calc(30px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:0;
+  background:var(--btn);color:var(--accent);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center}
+.trash b{position:absolute;top:-2px;right:-4px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--accent);color:#fff;font-size:11px;line-height:20px}
+.trash b:empty{display:none}
+
+/* ---------- toast ---------- */
+.toast{position:fixed;z-index:60;left:50%;bottom:calc(104px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;align-items:center;gap:14px;
+  padding:10px 10px 10px 18px;border-radius:12px;background:#2b2f33;color:#fff;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.25);white-space:nowrap}
+.toast button{border:0;background:none;color:#7fe0d3;font-weight:700;padding:6px 8px}
+
+/* ---------- sheets, drawer, composer ---------- */
+.scrim{position:fixed;inset:0;z-index:40;background:var(--scrim)}
+.sheet{position:fixed;z-index:50;left:0;right:0;bottom:0;max-height:88vh;overflow:auto;padding:16px 18px calc(18px + env(safe-area-inset-bottom));
+  background:var(--panel);border-radius:18px 18px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.18)}
+@media (min-width:720px){.sheet{left:50%;right:auto;bottom:auto;top:12vh;width:520px;transform:translateX(-50%);border-radius:16px;max-height:76vh}}
+.shd{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.shd h2{margin:0;font-size:17px}
+.x{border:0;background:none;font-size:26px;line-height:1;color:var(--muted);padding:2px 6px}
+.sheet label{display:block;font-size:12px;color:var(--muted);margin:16px 0 6px}
+.in{width:100%;font:inherit;font-size:16px;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.in:focus{outline:none;border-color:var(--accent)}
+textarea.in{resize:none;overflow:hidden;line-height:1.45}
+.sw{display:flex;gap:10px;flex-wrap:wrap}
+.sw button{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);padding:0}
+.sw button.on{outline:2px solid var(--accent);outline-offset:2px}
+.acts{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.b{flex:1;min-width:110px;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:11px 14px;font-size:15px}
+.b.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.b.warn{color:var(--warn)}
+.rowx{display:flex;align-items:center;gap:8px;margin-top:8px}
+.rowx .in{flex:1}
+.ib{flex:none;width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:15px}
+.ib.warn{color:var(--warn)}
+.ib:disabled{opacity:.35}
+.note{font-size:13px;color:var(--muted);line-height:1.7;margin:10px 0 0}
+.msg{font-size:13px;color:var(--warn);min-height:1.4em;margin:8px 0 0}
+.pill{display:inline-block;font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid currentColor;color:var(--muted)}
+.pill[data-s=ok]{color:var(--accent)} .pill[data-s=err]{color:var(--warn)}
+.chk{display:flex;align-items:center;gap:10px;font-size:15px;margin-top:14px;color:var(--text)!important}
+.chk input{width:20px;height:20px;accent-color:var(--accent)}
+.hr{border:0;border-top:1px solid var(--line);margin:22px 0 6px}
+.done-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+.done-row .txt{color:var(--muted);text-decoration:line-through;font-size:16px}
+
+.drawer{position:fixed;z-index:50;top:0;bottom:0;left:0;width:min(320px,84vw);overflow:auto;background:var(--panel);
+  padding:calc(18px + env(safe-area-inset-top)) 0 calc(18px + env(safe-area-inset-bottom));box-shadow:8px 0 30px rgba(0,0,0,.2)}
+.drawer h2{margin:0 22px 10px;font-size:15px;color:var(--muted);font-weight:600}
+.dl{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:14px 22px;font-size:16px;text-align:left}
+.dl.on{color:var(--accent);font-weight:700;background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.dl .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl .c{color:var(--muted);font-weight:400}
+.dl.sub{color:var(--muted);font-size:15px}
+.dfoot{margin:16px 22px 0}
+
+.composer{position:fixed;z-index:50;left:0;right:0;bottom:0;padding:12px 14px calc(12px + env(safe-area-inset-bottom));
+  background:var(--panel);border-radius:18px 18px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.18)}
+@media (min-width:720px){.composer{left:50%;right:auto;width:600px;transform:translateX(-50%);bottom:20px!important;border-radius:16px}}
+.crow{display:flex;align-items:flex-end;gap:10px}
+.crow textarea{flex:1;max-height:40vh;overflow:auto}
+.send{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center}
+.send:disabled{opacity:.4}
+.cchips{display:flex;gap:8px;overflow-x:auto;margin-top:10px;scrollbar-width:none;align-items:center}
+.cchips::-webkit-scrollbar{display:none}
+.cchip{flex:none;border:1px solid var(--line);background:var(--bg);border-radius:16px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.cchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.cdot{flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);padding:0}
+.cdot.on{outline:2px solid var(--accent);outline-offset:1px}
+.csep{flex:none;width:1px;height:20px;background:var(--line);margin:0 2px}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <button class="round" id="bMenu" aria-label="リスト一覧"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <div class="search" id="searchBox" hidden><input id="q" type="search" placeholder="すべてのリストを検索" enterkeyhint="search"><button id="qClose" aria-label="検索を閉じる">×</button></div>
+    <span class="grow" id="spacer"></span>
+    <button class="round" id="bSearch" aria-label="検索"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></button>
+    <button class="round" id="bSet" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><i class="dot" id="setDot" hidden></i></button>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+</header>
+<main id="main"></main>
+
+<button class="trash" id="bTrash" aria-label="完了したタスク"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg><b id="trashN"></b></button>
+<button class="fab" id="fab" aria-label="タスクを追加"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+
+<div class="toast" id="toast" hidden><span id="toastT"></span><button id="toastU">元に戻す</button></div>
+<div class="scrim" id="scrim" hidden></div>
+<section class="sheet" id="sheet" hidden></section>
+<aside class="drawer" id="drawer" hidden></aside>
+<div class="composer" id="composer" hidden>
+  <div class="crow"><textarea class="in" id="cText" rows="1" placeholder="新しいタスク（改行区切りでまとめて追加）" enterkeyhint="send"></textarea>
+    <button class="send" id="cSend" aria-label="追加"><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button></div>
+  <div class="cchips" id="cChips"></div>
+</div>
+
+<script src="firebase-config.js"></script>
+<script>
+const KEY = 'todo-list-v1';
+const COLORS = { '': 'なし', pink: 'ピンク', yellow: '黄', blue: '青', green: '緑', gray: 'グレー' };
+const $ = id => document.getElementById(id);
+const uid = () => Math.random().toString(36).slice(2, 10);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const mainEl = $('main'), tabsEl = $('tabs'), sheet = $('sheet'), scrim = $('scrim'), drawer = $('drawer'), composer = $('composer'), cText = $('cText');
+const swatch = c => c ? `var(--c-${c})` : 'var(--bg)';
+let S, query = '';
+
+/* ---------- data ---------- */
+// lists = the tabs, each with its own sections (TODAY, 明日やること, …); items point at a list and a section
+function seed() {
+  const sec = name => ({ id: uid(), name });
+  const priv = { id: uid(), name: 'プライベート', sections: [sec('TODAY'), sec('明日やること'), sec('いつか')] };
+  const task = { id: uid(), name: 'タスク', sections: [sec('TODAY'), sec('明日やること')] };
+  const prio = { id: uid(), name: '優先度A（重要度高）', sections: [sec('TODAY')] };
+  const items = [];
+  const add = (l, s, text, color = '') => items.push({ id: uid(), list: l.id, sec: l.sections[s].id, text, done: false, doneAt: 0, color, memo: '', order: items.length });
+  add(task, 0, '契約書作成');
+  add(task, 0, '銀行入金', 'pink');
+  add(task, 0, '開発見積もり再送', 'pink');
+  add(task, 0, '名刺作成', 'pink');
+  add(task, 0, '和通連絡');
+  add(task, 0, '機能追加（hugからの取り込み/事業所ごとの設定、連絡帳）23:00-24:00');
+  add(task, 0, '旅行計画');
+  add(task, 1, '21に連絡');
+  return normalize({ lists: [priv, task, prio], items, cur: task.id });
+}
+function normalize(s) {
+  const lists = (s.lists || []).filter(l => l && l.id != null).map(l => ({
+    id: String(l.id), name: String(l.name ?? ''),
+    sections: (l.sections || []).filter(x => x && x.id != null).map(x => ({ id: String(x.id), name: String(x.name ?? '') }))
+  }));
+  if (!lists.length) lists.push({ id: uid(), name: 'タスク', sections: [] });
+  for (const l of lists) if (!l.sections.length) l.sections.push({ id: uid(), name: 'TODAY' });
+  const listOf = {};
+  for (const l of lists) for (const x of l.sections) listOf[x.id] = l;
+  const items = (s.items || []).filter(i => i && i.id != null && lists.some(l => l.id === String(i.list))).map(i => {
+    const list = String(i.list), l = lists.find(l => l.id === list);
+    return { id: String(i.id), list, sec: listOf[i.sec] === l ? String(i.sec) : l.sections[0].id, text: String(i.text ?? ''),
+      done: !!i.done, doneAt: +i.doneAt || 0, color: i.color in COLORS ? i.color : '', memo: String(i.memo || ''), order: +i.order || 0 };
+  });
+  return { lists, items, cur: lists.some(l => l.id === s.cur) ? s.cur : lists[0].id,
+    collapsed: s.collapsed || {}, lastSec: s.lastSec || {}, addTop: !!s.addTop };
+}
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.lists)) return normalize(s); } catch (e) {}
+  return seed();
+}
+function saveLocal() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+function commit() { saveLocal(); render(); queueCloud(); }
+
+const curList = () => S.lists.find(l => l.id === S.cur);
+const byOrder = (a, b) => a.order - b.order;
+const openIn = sec => S.items.filter(i => i.sec === sec && !i.done).sort(byOrder);
+const openCount = list => S.items.filter(i => i.list === list && !i.done).length;
+function nextOrder(sec) {
+  const o = S.items.filter(i => i.sec === sec).map(i => i.order);
+  return !o.length ? 0 : S.addTop ? Math.min(...o) - 1 : Math.max(...o) + 1;
+}
+const findItem = id => S.items.find(i => i.id === id);
+
+/* ---------- undo (one step, from the toast) ---------- */
+let undoSnap = null, toastTimer = 0;
+const snapshot = () => JSON.stringify({ lists: S.lists, items: S.items });
+function toast(text, snap) {
+  undoSnap = snap || null;
+  $('toastT').textContent = text; $('toastU').hidden = !snap; $('toast').hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; undoSnap = null; }, 4500);
+}
+$('toastU').onclick = () => {
+  if (!undoSnap) return;
+  const r = normalize({ ...JSON.parse(undoSnap), cur: S.cur });
+  S.lists = r.lists; S.items = r.items; S.cur = r.cur;
+  undoSnap = null; $('toast').hidden = true; commit();
+};
+
+/* ---------- render ---------- */
+function render() { renderTabs(); renderMain(); $('trashN').textContent = S.items.filter(i => i.list === S.cur && i.done).length || ''; }
+function renderTabs() {
+  const tabs = S.lists.map(l => {
+    const b = el('button', 'tab' + (l.id === S.cur ? ' on' : ''));
+    b.append(el('span', 'tn', l.name || '（無題）'), el('span', 'tc', openCount(l.id)));
+    // tap switches; tapping the open tab again edits it
+    b.onclick = () => l.id === S.cur ? editList(l.id) : switchList(l.id);
+    return b;
+  });
+  const add = el('button', 'tab add', '＋'); add.setAttribute('aria-label', 'リストを追加'); add.onclick = newList;
+  tabsEl.replaceChildren(...tabs, add);
+  const on = tabsEl.querySelector('.tab.on');
+  if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+function row(it, where) {
+  const r = el('div', 'item' + (it.color ? ' c-' + it.color : ''));
+  r.dataset.id = it.id;
+  const c = el('button', 'circle'); c.setAttribute('aria-label', '完了にする');
+  c.onclick = e => { e.stopPropagation(); complete(it.id, r); };
+  const t = el('div', 'txt');
+  if (where) t.append(el('div', 'where', where));
+  t.append(document.createTextNode(it.text));
+  if (it.memo) t.append(el('div', 'memo', it.memo));
+  r.append(c, t);
+  r.onclick = () => { if (!justDragged) editItem(it.id); };
+  return r;
+}
+function renderMain() {
+  if (query) return renderSearch();
+  const l = curList();
+  const secs = l.sections.map(x => {
+    const open = openIn(x.id), closed = !!S.collapsed[x.id];
+    const s = el('section', 'sec' + (closed ? ' closed' : '')); s.dataset.sec = x.id;
+    const h = el('div', 'shead');
+    const name = el('button', 'sname', x.name || '（無題）'); name.onclick = () => editList(l.id, x.id);
+    const fold = el('button', 'sfold'); fold.setAttribute('aria-label', closed ? '開く' : '閉じる');
+    fold.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
+    const toggle = () => { if (S.collapsed[x.id]) delete S.collapsed[x.id]; else S.collapsed[x.id] = true; saveLocal(); renderMain(); };
+    fold.onclick = toggle;
+    const cnt = el('span', 'scount', open.length); cnt.onclick = toggle;
+    h.append(name, cnt, fold);
+    const box = el('div', 'items');
+    if (open.length) box.append(...open.map(it => row(it)));
+    else box.append(el('div', 'empty', 'タスクはありません'));
+    s.append(h, box);
+    return s;
+  });
+  const add = el('button', 'addsec', '＋ セクションを追加');
+  add.onclick = () => { const x = { id: uid(), name: '新しいセクション' }; l.sections.push(x); commit(); editList(l.id, x.id); };
+  mainEl.replaceChildren(...secs, add);
+}
+function renderSearch() {
+  const q = query.toLowerCase();
+  const hits = S.items.filter(i => !i.done && (i.text + '\n' + i.memo).toLowerCase().includes(q));
+  const out = [el('div', 'rhead', `「${query}」 ${hits.length}件`)];
+  for (const l of S.lists) for (const x of l.sections) {
+    for (const it of hits.filter(i => i.sec === x.id).sort(byOrder)) out.push(row(it, `${l.name} › ${x.name}`));
+  }
+  if (!hits.length) out.push(el('div', 'empty', '見つかりませんでした'));
+  mainEl.replaceChildren(...out);
+}
+function switchList(id, dir = 0) {
+  if (!S.lists.some(l => l.id === id)) return;
+  S.cur = id; saveLocal(); render(); scrollTo(0, 0);
+  if (dir) { mainEl.classList.remove('slide-l', 'slide-r'); void mainEl.offsetWidth; mainEl.classList.add(dir > 0 ? 'slide-l' : 'slide-r'); }
+}
+
+/* ---------- complete / restore ---------- */
+function complete(id, r) {
+  r.classList.add('checking');
+  setTimeout(() => {
+    const it = findItem(id); if (!it || it.done) return;
+    const snap = snapshot();
+    it.done = true; it.doneAt = Date.now();
+    commit(); toast('完了しました', snap);
+  }, 420);
+}
+function restore(id) {
+  const it = findItem(id); if (!it) return;
+  it.done = false; it.doneAt = 0; it.order = nextOrder(it.sec); commit();
+}
+
+/* ---------- sheets ---------- */
+let onSheetClose = null;
+function openSheet(title, build, onClose) {
+  closeAll();
+  const head = el('div', 'shd'), x = el('button', 'x', '×');
+  x.setAttribute('aria-label', '閉じる'); x.onclick = closeSheet;
+  head.append(el('h2', '', title), x);
+  const body = el('div');
+  sheet.replaceChildren(head, body);
+  build(body);
+  onSheetClose = onClose || null;
+  sheet.hidden = false; scrim.hidden = false;
+  placeFloating();
+}
+function closeSheet() {
+  if (sheet.hidden) return;
+  sheet.hidden = true; scrim.hidden = true;
+  const f = onSheetClose; onSheetClose = null;
+  if (f) f();
+  render(); applyRemote();
+}
+function closeAll() { closeSheet(); closeDrawer(); closeComposer(); }
+scrim.onclick = closeAll;
+addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if (query) closeSearch(); closeAll(); }
+  else if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && sheet.hidden && composer.hidden) { e.preventDefault(); openComposer(); }
+});
+const autosize = t => { t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; };
+function field(box, label, input) { const l = el('label', '', label); box.append(l, input); return input; }
+function swatches(cur, pick) {
+  const w = el('div', 'sw');
+  for (const [c, name] of Object.entries(COLORS)) {
+    const b = el('button', c === cur ? 'on' : ''); b.style.background = swatch(c); b.title = name; b.setAttribute('aria-label', name);
+    b.onclick = () => { w.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); pick(c); };
+    w.append(b);
+  }
+  return w;
+}
+// small edits made in a sheet are saved as they are typed
+function touched() { saveLocal(); queueCloud(); }
+
+function editItem(id) {
+  const it = findItem(id); if (!it) return;
+  openSheet('タスクを編集', box => {
+    const name = field(box, 'タスク名', el('textarea', 'in')); name.value = it.text; name.rows = 1;
+    name.oninput = () => { it.text = name.value; autosize(name); touched(); };
+    const where = field(box, 'リスト › セクション', el('select', 'in'));
+    for (const l of S.lists) {
+      const g = el('optgroup'); g.label = l.name;
+      for (const x of l.sections) { const o = el('option', '', `${l.name} › ${x.name}`); o.value = x.id; g.append(o); }
+      where.append(g);
+    }
+    where.value = it.sec;
+    where.onchange = () => {
+      const l = S.lists.find(l => l.sections.some(x => x.id === where.value));
+      it.list = l.id; it.sec = where.value; it.order = nextOrder(it.sec); touched();
+    };
+    box.append(el('label', '', '色'), swatches(it.color, c => { it.color = c; touched(); }));
+    const memo = field(box, 'メモ', el('textarea', 'in')); memo.value = it.memo; memo.rows = 2;
+    memo.oninput = () => { it.memo = memo.value; autosize(memo); touched(); };
+    const acts = el('div', 'acts'), del = el('button', 'b warn', '削除'), done = el('button', 'b pri', '完了にする');
+    del.onclick = () => { const snap = snapshot(); S.items = S.items.filter(i => i !== it); closeSheet(); commit(); toast('削除しました', snap); };
+    done.onclick = () => { const snap = snapshot(); it.done = true; it.doneAt = Date.now(); closeSheet(); commit(); toast('完了しました', snap); };
+    acts.append(del, done); box.append(acts);
+    requestAnimationFrame(() => { autosize(name); autosize(memo); });
+  }, () => {
+    // a task whose name was erased is removed
+    if (!it.text.trim() && S.items.includes(it)) { S.items = S.items.filter(i => i !== it); commit(); }
+  });
+}
+
+function newList() {
+  const l = { id: uid(), name: '新しいリスト', sections: [{ id: uid(), name: 'TODAY' }, { id: uid(), name: '明日やること' }] };
+  S.lists.push(l); S.cur = l.id; commit(); editList(l.id);
+}
+function editList(id, focusSec) {
+  const l = S.lists.find(l => l.id === id); if (!l) return;
+  openSheet('リストを編集', box => {
+    const name = field(box, 'リスト名', el('input', 'in')); name.value = l.name;
+    name.oninput = () => { l.name = name.value; touched(); renderTabs(); };
+    const pos = el('div', 'acts'), left = el('button', 'b', '← 左へ'), right = el('button', 'b', '右へ →');
+    const move = d => { const i = S.lists.indexOf(l), j = i + d; if (!S.lists[j]) return; [S.lists[i], S.lists[j]] = [S.lists[j], S.lists[i]]; touched(); renderTabs(); paint(); };
+    left.onclick = () => move(-1); right.onclick = () => move(1);
+    pos.append(left, right);
+    box.append(pos, el('label', '', 'セクション'));
+    const secs = el('div'); box.append(secs);
+    function paint() {
+      const i = S.lists.indexOf(l); left.disabled = i === 0; right.disabled = i === S.lists.length - 1;
+      secs.replaceChildren(...l.sections.map((x, n) => {
+        const r = el('div', 'rowx'), inp = el('input', 'in'); inp.value = x.name;
+        inp.oninput = () => { x.name = inp.value; touched(); };
+        const up = el('button', 'ib', '↑'), dn = el('button', 'ib', '↓'), del = el('button', 'ib warn', '✕');
+        up.disabled = n === 0; dn.disabled = n === l.sections.length - 1;
+        up.setAttribute('aria-label', '上へ'); dn.setAttribute('aria-label', '下へ'); del.setAttribute('aria-label', '削除');
+        up.onclick = () => { l.sections.splice(n - 1, 0, ...l.sections.splice(n, 1)); touched(); paint(); };
+        dn.onclick = () => { l.sections.splice(n + 1, 0, ...l.sections.splice(n, 1)); touched(); paint(); };
+        del.onclick = () => {
+          if (l.sections.length === 1) return toast('セクションは1つ以上必要です');
+          const k = S.items.filter(i => i.sec === x.id).length;
+          if (k && !confirm(`「${x.name}」の${k}件のタスクも削除されます。よろしいですか？`)) return;
+          const snap = snapshot();
+          l.sections.splice(n, 1); S.items = S.items.filter(i => i.sec !== x.id); touched(); paint();
+          toast('セクションを削除しました', snap);
+        };
+        r.append(inp, up, dn, del);
+        if (x.id === focusSec) requestAnimationFrame(() => { inp.focus(); inp.select(); });
+        return r;
+      }));
+    }
+    paint();
+    const addS = el('button', 'b', '＋ セクションを追加'); addS.style.marginTop = '10px'; addS.style.width = '100%';
+    addS.onclick = () => { const x = { id: uid(), name: '' }; l.sections.push(x); focusSec = x.id; touched(); paint(); };
+    box.append(addS);
+    const acts = el('div', 'acts'), del = el('button', 'b warn', 'このリストを削除');
+    del.onclick = () => {
+      if (S.lists.length === 1) return toast('リストは1つ以上必要です');
+      const k = S.items.filter(i => i.list === l.id).length;
+      if (!confirm(`リスト「${l.name}」${k ? `と${k}件のタスク` : ''}を削除します。よろしいですか？`)) return;
+      const snap = snapshot();
+      S.lists = S.lists.filter(x => x !== l); S.items = S.items.filter(i => i.list !== l.id);
+      if (S.cur === l.id) S.cur = S.lists[0].id;
+      closeSheet(); commit(); toast('リストを削除しました', snap);
+    };
+    acts.append(del); box.append(acts);
+  }, () => {
+    for (const x of l.sections) if (!x.name.trim()) x.name = 'セクション';
+    if (!l.name.trim()) l.name = 'リスト';
+    commit();
+  });
+}
+
+function openTrash() {
+  const l = curList();
+  openSheet(`完了したタスク（${l.name}）`, box => {
+    const paint = () => {
+      const done = S.items.filter(i => i.list === l.id && i.done).sort((a, b) => b.doneAt - a.doneAt);
+      const rows = done.map(it => {
+        const r = el('div', 'done-row'), c = el('button', 'circle on'); c.setAttribute('aria-label', '未完了に戻す');
+        c.onclick = () => { restore(it.id); paint(); };
+        const x = el('button', 'ib warn', '✕'); x.setAttribute('aria-label', '完全に削除');
+        x.onclick = () => { S.items = S.items.filter(i => i !== it); commit(); paint(); };
+        r.append(c, el('div', 'txt', it.text), x);
+        return r;
+      });
+      if (!done.length) rows.push(el('p', 'note', '完了したタスクはありません。'));
+      else rows.unshift(el('p', 'note', '○をタップすると未完了に戻ります。'));
+      const acts = el('div', 'acts'), all = el('button', 'b warn', '完了済みをすべて削除');
+      all.disabled = !done.length;
+      all.onclick = () => {
+        if (!confirm(`完了済みの${done.length}件を削除します。よろしいですか？`)) return;
+        const snap = snapshot(); S.items = S.items.filter(i => !(i.list === l.id && i.done)); commit(); paint();
+        toast('削除しました', snap);
+      };
+      acts.append(all);
+      box.replaceChildren(...rows, acts);
+    };
+    paint();
+  });
+}
+
+function openSettings() {
+  openSheet('設定', box => {
+    box.append(el('label', '', '同期'));
+    const pill = el('span', 'pill'); pill.dataset.role = 'sync'; box.append(pill); paintSync();
+    const acct = el('div'); box.append(acct); paintAcct(acct);
+    box.append(el('hr', 'hr'));
+    const top = el('label', 'chk'), cb = el('input'); cb.type = 'checkbox'; cb.checked = S.addTop;
+    cb.onchange = () => { S.addTop = cb.checked; saveLocal(); };
+    top.append(cb, document.createTextNode('新しいタスクをセクションの先頭に追加する')); box.append(top);
+    box.append(el('hr', 'hr'));
+    const acts = el('div', 'acts'), ex = el('button', 'b', 'ファイルに書き出し'), im = el('button', 'b', 'ファイルから読み込み');
+    ex.onclick = exportFile; im.onclick = importFile;
+    acts.append(ex, im); box.append(acts);
+    box.append(el('p', 'note', 'このリストは TODO Tree とは別に保存されます。同じアカウントでログインすると、PCとスマホで同期されます。'));
+  });
+}
+function exportFile() {
+  const d = new Date(), name = `todo-list-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
+  const a = el('a'); a.href = URL.createObjectURL(new Blob([snapshot()], { type: 'application/json' })); a.download = name;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function importFile() {
+  const f = el('input'); f.type = 'file'; f.accept = 'application/json,.json';
+  f.onchange = async () => {
+    try {
+      const d = JSON.parse(await f.files[0].text());
+      if (!Array.isArray(d.lists)) throw 0;
+      if (!confirm('今のリストをファイルの内容で置き換えます。よろしいですか？')) return;
+      const snap = snapshot(), r = normalize({ ...d, cur: S.cur });
+      S.lists = r.lists; S.items = r.items; S.cur = r.cur;
+      closeSheet(); commit(); toast('読み込みました', snap);
+    } catch (e) { toast('読み込めないファイルです'); }
+  };
+  f.click();
+}
+
+/* ---------- drawer ---------- */
+function openDrawer() {
+  closeAll();
+  const rows = S.lists.map(l => {
+    const b = el('button', 'dl' + (l.id === S.cur ? ' on' : ''));
+    b.append(el('span', 'n', l.name || '（無題）'), el('span', 'c', openCount(l.id)));
+    b.onclick = () => { closeDrawer(); switchList(l.id); };
+    return b;
+  });
+  const add = el('button', 'dl sub', '＋ 新しいリスト'); add.onclick = () => { closeDrawer(); newList(); };
+  const edit = el('button', 'dl sub', '✎ 今のリストを編集'); edit.onclick = () => { closeDrawer(); editList(S.cur); };
+  const tree = el('a', 'dl sub', '↗ TODO Tree（ツリー表示）を開く'); tree.href = 'index.html'; tree.style.textDecoration = 'none';
+  const foot = el('div', 'dfoot'), pill = el('span', 'pill'); pill.dataset.role = 'sync'; foot.append(pill);
+  drawer.replaceChildren(el('h2', '', 'リスト'), ...rows, add, edit, el('hr', 'hr'), tree, foot);
+  paintSync();
+  drawer.hidden = false; scrim.hidden = false;
+}
+function closeDrawer() { if (drawer.hidden) return; drawer.hidden = true; scrim.hidden = true; }
+
+/* ---------- composer (＋) ---------- */
+const comp = { sec: null, color: '' };
+function openComposer() {
+  closeAll();
+  const l = curList();
+  comp.sec = l.sections.some(x => x.id === S.lastSec[l.id]) ? S.lastSec[l.id] : l.sections[0].id;
+  paintComposer();
+  composer.hidden = false; scrim.hidden = false;
+  cText.focus(); autosize(cText); placeFloating();
+}
+function closeComposer() { if (composer.hidden) return; composer.hidden = true; scrim.hidden = true; cText.blur(); applyRemote(); }
+function paintComposer() {
+  const l = curList(), out = [];
+  for (const x of l.sections) {
+    const b = el('button', 'cchip' + (x.id === comp.sec ? ' on' : ''), x.name);
+    b.onclick = () => { comp.sec = x.id; paintComposer(); cText.focus(); };
+    out.push(b);
+  }
+  out.push(el('span', 'csep'));
+  for (const [c, name] of Object.entries(COLORS)) {
+    const b = el('button', 'cdot' + (c === comp.color ? ' on' : '')); b.style.background = swatch(c); b.setAttribute('aria-label', '色: ' + name);
+    b.onclick = () => { comp.color = c; paintComposer(); cText.focus(); };
+    out.push(b);
+  }
+  $('cChips').replaceChildren(...out);
+  $('cSend').disabled = !cText.value.trim();
+}
+function addFromComposer() {
+  const lines = cText.value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!lines.length) return;
+  const l = curList();
+  // added to the top: keep the typed order by placing the last line first
+  for (const text of S.addTop ? [...lines].reverse() : lines)
+    S.items.push({ id: uid(), list: l.id, sec: comp.sec, text, done: false, doneAt: 0, color: comp.color, memo: '', order: nextOrder(comp.sec) });
+  S.lastSec[l.id] = comp.sec; delete S.collapsed[comp.sec];
+  cText.value = ''; autosize(cText); $('cSend').disabled = true;
+  commit();
+  if (lines.length > 1) toast(`${lines.length}件追加しました`);
+}
+cText.addEventListener('input', () => { autosize(cText); $('cSend').disabled = !cText.value.trim(); });
+cText.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); addFromComposer(); } });
+$('cSend').onclick = () => { addFromComposer(); cText.focus(); };
+
+// keep the composer and sheets above the on-screen keyboard
+const vv = window.visualViewport;
+function placeFloating() {
+  const off = vv ? Math.max(0, innerHeight - vv.height - vv.offsetTop) : 0;
+  composer.style.bottom = off + 'px';
+  if (innerWidth < 720) sheet.style.bottom = off + 'px';
+}
+if (vv) { vv.addEventListener('resize', placeFloating); vv.addEventListener('scroll', placeFloating); }
+
+/* ---------- search ---------- */
+function openSearch() { $('searchBox').hidden = false; $('spacer').hidden = true; $('bSearch').hidden = true; $('q').focus(); }
+function closeSearch() { query = ''; $('q').value = ''; $('searchBox').hidden = true; $('spacer').hidden = false; $('bSearch').hidden = false; renderMain(); }
+$('q').addEventListener('input', () => { query = $('q').value.trim(); renderMain(); });
+$('qClose').onclick = closeSearch;
+
+/* ---------- reorder by long press, and swipe between tabs ---------- */
+let drag = null, justDragged = false;
+function beginDrag(r, y) {
+  const it = findItem(r.dataset.id); if (!it) return;
+  const b = r.getBoundingClientRect(), ph = el('div', 'ph');
+  ph.style.height = b.height + 'px';
+  r.before(ph);
+  r.classList.add('dragging');
+  Object.assign(r.style, { position: 'fixed', left: b.left + 'px', top: b.top + 'px', width: b.width + 'px' });
+  drag = { r, ph, it, dy: y - b.top, y, target: it.sec };
+  if (navigator.vibrate) navigator.vibrate(12);
+  requestAnimationFrame(autoScroll);
+}
+function moveDrag(y) { drag.y = y; drag.r.style.top = y - drag.dy + 'px'; placeDrop(); }
+function placeDrop() {
+  const y = drag.y, secs = [...mainEl.querySelectorAll('.sec')];
+  if (!secs.length) return;
+  const sec = secs.find(s => { const b = s.getBoundingClientRect(); return y >= b.top && y < b.bottom; })
+    || (y < secs[0].getBoundingClientRect().top ? secs[0] : secs[secs.length - 1]);
+  secs.forEach(s => s.classList.toggle('drop', s === sec && s.classList.contains('closed')));
+  drag.target = sec.dataset.sec;
+  // a folded section takes the task at its end
+  if (sec.classList.contains('closed')) { drag.ph.remove(); return; }
+  const box = sec.querySelector('.items');
+  const before = [...box.querySelectorAll('.item:not(.dragging)')].find(x => { const b = x.getBoundingClientRect(); return y < b.top + b.height / 2; });
+  if (before) { if (drag.ph.nextElementSibling !== before) before.before(drag.ph); }
+  else if (box.lastElementChild !== drag.ph) box.append(drag.ph);
+}
+function endDrag() {
+  const { r, ph, it, target } = drag; drag = null;
+  const ids = ph.isConnected
+    ? [...ph.parentNode.children].filter(c => c === ph || (c.classList.contains('item') && c !== r)).map(c => c === ph ? it.id : c.dataset.id)
+    : [...openIn(target).filter(i => i !== it).map(i => i.id), it.id];
+  it.sec = target;
+  ids.forEach((id, n) => { const x = findItem(id); if (x) x.order = n; });
+  justDragged = true; setTimeout(() => { justDragged = false; }, 60);
+  commit(); applyRemote();
+}
+function autoScroll() {
+  if (!drag) return;
+  const top = document.querySelector('header').getBoundingClientRect().bottom;
+  const v = drag.y < top + 50 ? -9 : drag.y > innerHeight - 80 ? 9 : 0;
+  if (v) { scrollBy(0, v); placeDrop(); }
+  requestAnimationFrame(autoScroll);
+}
+mainEl.addEventListener('pointerdown', e => {
+  const r = e.target.closest('.item');
+  if (!r || e.target.closest('.circle') || query || drag) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  const pid = e.pointerId, sx = e.clientX, sy = e.clientY, mouse = e.pointerType === 'mouse';
+  let timer = setTimeout(() => { timer = 0; beginDrag(r, sy); }, mouse ? 300 : 400);
+  const stop = () => { clearTimeout(timer); timer = 0; removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); };
+  const move = ev => {
+    if (ev.pointerId !== pid) return;
+    if (drag) return moveDrag(ev.clientY);
+    if (timer && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) {
+      // with a mouse, moving while pressed picks the task up straight away
+      if (mouse) { clearTimeout(timer); timer = 0; beginDrag(r, sy); moveDrag(ev.clientY); } else stop();
+    }
+  };
+  const up = ev => { if (ev.pointerId !== pid) return; const was = !!drag; stop(); if (was) endDrag(); };
+  addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+});
+addEventListener('touchmove', e => { if (drag) e.preventDefault(); }, { passive: false });
+mainEl.addEventListener('contextmenu', e => { if (e.target.closest('.item')) e.preventDefault(); });
+let swipe = null;
+mainEl.addEventListener('touchstart', e => { const t = e.touches[0]; swipe = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null; }, { passive: true });
+mainEl.addEventListener('touchend', e => {
+  const s = swipe; swipe = null;
+  if (!s || drag || justDragged || query) return;
+  const t = e.changedTouches[0], dx = t.clientX - s.x, dy = t.clientY - s.y;
+  if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
+  const next = S.lists[S.lists.findIndex(l => l.id === S.cur) + (dx < 0 ? 1 : -1)];
+  if (next) switchList(next.id, dx < 0 ? 1 : -1);
+});
+
+$('bMenu').onclick = openDrawer;
+$('bSearch').onclick = openSearch;
+$('bSet').onclick = openSettings;
+$('bTrash').onclick = openTrash;
+$('fab').onclick = openComposer;
+
+/* ---------- cloud sync (PC <-> phone) ---------- */
+// Same account as TODO Tree, stored next to its board at users/<uid>/boards/list
+const CLIENT = uid();
+const sync = { ref: null, ready: false, writing: false, queued: false, lastSent: null, pending: null, pendingBase: null, timer: 0, state: 'off', text: 'この端末のみ' };
+const contentOf = s => JSON.stringify({
+  lists: s.lists.map(({ id, name, sections }) => ({ id, name, sections: sections.map(({ id, name }) => ({ id, name })) })),
+  items: s.items.map(({ id, list, sec, text, done, doneAt, color, memo, order }) => ({ id, list, sec, text, done, doneAt, color, memo, order }))
+});
+function setSync(state, text) { sync.state = state; sync.text = text; paintSync(); }
+function paintSync() {
+  document.querySelectorAll('[data-role=sync]').forEach(p => { p.dataset.s = sync.state; p.textContent = sync.text; });
+  $('setDot').hidden = sync.state !== 'err';
+}
+function queueCloud() {
+  if (!sync.ready || contentOf(S) === sync.lastSent) return;
+  clearTimeout(sync.timer);
+  setSync('busy', '保存中…');
+  sync.timer = setTimeout(flushCloud, 700);
+}
+async function flushCloud() {
+  if (!sync.ref) return;
+  // a newer version from another device is waiting to be applied: writing now would overwrite it
+  if (sync.pending) { clearTimeout(sync.timer); sync.timer = setTimeout(flushCloud, 1000); return; }
+  if (sync.writing) { sync.queued = true; return; }
+  const str = contentOf(S);
+  if (str === sync.lastSent) { setSync('ok', '同期済み'); return; }
+  sync.writing = true;
+  try {
+    await sync.ref.set({ ...JSON.parse(str), client: CLIENT, savedAt: Date.now() });
+    sync.lastSent = str;
+    setSync('ok', '同期済み');
+  } catch (e) {
+    if (e && (e.code === 'unavailable' || e.code === 'resource_exhausted')) {
+      setSync('err', '保存を再試行中…');
+      setTimeout(flushCloud, 2500 + Math.random() * 1500);
+    } else setSync('err', '保存できませんでした');
+  } finally {
+    sync.writing = false;
+    if (sync.queued) { sync.queued = false; flushCloud(); }
+  }
+}
+const isBusy = () => !!(drag || !sheet.hidden || !composer.hidden);
+function onRemote(snap) {
+  // the offline cache can be older than the server: never treat it as synced
+  if (snap.metadata && snap.metadata.fromCache) return;
+  if (!snap.exists) { if (!sync.ready) { sync.ready = true; flushCloud(); } return; } // first use: upload this device's lists
+  const d = snap.data();
+  if (d.client === CLIENT) { sync.ready = true; return; } // this device's own save coming back
+  const remote = normalize({ lists: d.lists, items: d.items, cur: S.cur });
+  const remoteStr = contentOf(remote);
+  const localDirty = sync.ready && contentOf(S) !== sync.lastSent;
+  sync.ready = true;
+  if (remoteStr === contentOf(S)) { sync.lastSent = remoteStr; setSync('ok', '同期済み'); return; }
+  if (localDirty) return; // this device's newer edit is about to be written
+  sync.lastSent = remoteStr;
+  sync.pending = remote;
+  sync.pendingBase = contentOf(S);
+  applyRemote();
+}
+function applyRemote() {
+  if (!sync.pending || isBusy()) return;
+  const r = sync.pending; sync.pending = null;
+  // edited here while it waited: this device's edit is newer, so it is kept and sent
+  if (contentOf(S) !== sync.pendingBase) { sync.lastSent = null; queueCloud(); return; }
+  S.lists = r.lists; S.items = r.items;
+  if (!S.lists.some(l => l.id === S.cur)) S.cur = S.lists[0].id;
+  saveLocal(); render();
+  setSync('ok', '同期済み');
+}
+setInterval(applyRemote, 1000);
+
+const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
+const fb = { api: null, auth: null, unsub: null, user: null };
+const fbCode = e => ({ unavailable: 'unavailable', 'resource-exhausted': 'resource_exhausted' })[e && e.code] || 'error';
+async function initFirebase(cfg) {
+  setSync('busy', '接続中…');
+  try {
+    const [App, A, F] = await Promise.all([import(FB + 'firebase-app.js'), import(FB + 'firebase-auth.js'), import(FB + 'firebase-firestore.js')]);
+    const app = App.initializeApp(cfg);
+    let db;
+    // TODO Tree may be open in another tab of the same site
+    try { db = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }); }
+    catch (e) { db = F.getFirestore(app); }
+    fb.api = { A, F, db };
+    fb.auth = A.getAuth(app);
+    A.onAuthStateChanged(fb.auth, onAuth);
+  } catch (e) {
+    setSync('err', '同期サービスに接続できません');
+  }
+}
+function onAuth(u) {
+  if (fb.unsub) { fb.unsub(); fb.unsub = null; }
+  Object.assign(sync, { ref: null, ready: false, lastSent: null, pending: null });
+  fb.user = u;
+  document.querySelectorAll('[data-role=acct]').forEach(paintAcct);
+  if (!u) return setSync('off', 'ログインして同期');
+  const { F, db } = fb.api, d = F.doc(db, 'users', u.uid, 'boards', 'list');
+  sync.ref = {
+    set: data => F.setDoc(d, data).catch(e => { throw { code: fbCode(e) }; }),
+    onSnapshot: (next, err) => F.onSnapshot(d, { includeMetadataChanges: true }, s => next({ exists: s.exists(), data: () => s.data(), metadata: s.metadata }), err)
+  };
+  setSync('busy', '同期中…');
+  fb.unsub = sync.ref.onSnapshot(onRemote, () => setSync('err', '同期が止まりました。再読み込みしてください'));
+}
+const AUTH_MSG = {
+  'auth/invalid-email': 'メールアドレスの形式が正しくありません',
+  'auth/missing-password': 'パスワードを入力してください',
+  'auth/weak-password': 'パスワードは6文字以上にしてください',
+  'auth/email-already-in-use': 'このメールアドレスは登録済みです。「ログイン」を押してください',
+  'auth/invalid-credential': 'メールアドレスかパスワードが違います',
+  'auth/wrong-password': 'メールアドレスかパスワードが違います',
+  'auth/user-not-found': 'このメールアドレスは未登録です。「新規登録」を押してください',
+  'auth/too-many-requests': '試行回数が多すぎます。少し待ってから試してください',
+  'auth/network-request-failed': 'インターネットに接続できません'
+};
+function paintAcct(box) {
+  box.dataset.role = 'acct';
+  if (!fb.api) return box.replaceChildren(el('p', 'note', window.FIREBASE_CONFIG ? '同期サービスに接続しています…' : 'この端末だけに保存しています。'));
+  if (fb.user) {
+    const out = el('button', 'b', 'ログアウト'); out.onclick = () => fb.api.A.signOut(fb.auth);
+    const acts = el('div', 'acts'); acts.append(out);
+    return box.replaceChildren(el('p', 'note', `${fb.user.email || ''} でログイン中です。変更は自動で同期されます。`), acts);
+  }
+  const email = el('input', 'in'); email.type = 'email'; email.autocomplete = 'username'; email.inputMode = 'email';
+  const pass = el('input', 'in'); pass.type = 'password'; pass.autocomplete = 'current-password';
+  const msg = el('p', 'msg'); msg.setAttribute('role', 'status');
+  const go = async signup => {
+    msg.textContent = '';
+    try {
+      const { A } = fb.api;
+      if (signup) await A.createUserWithEmailAndPassword(fb.auth, email.value.trim(), pass.value);
+      else await A.signInWithEmailAndPassword(fb.auth, email.value.trim(), pass.value);
+    } catch (e) { msg.textContent = AUTH_MSG[e.code] || `ログインできませんでした（${e.code || e.message}）`; }
+  };
+  pass.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) go(false); });
+  const acts = el('div', 'acts'), li = el('button', 'b pri', 'ログイン'), su = el('button', 'b', '新規登録');
+  li.onclick = () => go(false); su.onclick = () => go(true);
+  acts.append(li, su);
+  box.replaceChildren(el('p', 'note', 'TODO Tree と同じメールアドレスでログインしてください。'),
+    el('label', '', 'メールアドレス'), email, el('label', '', 'パスワード（6文字以上）'), pass, acts, msg);
+}
+
+/* ---------- boot ---------- */
+S = load();
+saveLocal();
+render();
+if (window.FIREBASE_CONFIG) initFirebase(window.FIREBASE_CONFIG); else setSync('off', 'この端末のみ');
+if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

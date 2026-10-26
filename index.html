@@ -456,6 +456,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
       <button class="t" id="bImport" title="ファイルから読み込み">読込</button>
       <button class="t warn" id="bClear">全消去</button>
       <button class="t" id="bHelp">？</button>
+      <button class="t" id="bList" title="タブとセクションのTODOリストを開く">リスト ↗</button>
     </div>
     <div class="legend">
       <span style="color:var(--todo)"><i class="dot" style="background:var(--todo)"></i><span style="color:var(--muted)">未着手</span></span>
@@ -2302,6 +2303,7 @@ function openAcct() {
 function closeAcct() { $('acct').classList.add('hidden'); }
 $('sync').addEventListener('click', openAcct);
 $('aClose').onclick = closeAcct;
+$('bList').onclick = () => { location.href = 'list.html'; };
 $('aLogin').onclick = () => doAuth(false);
 $('aSignup').onclick = () => doAuth(true);
 $('aPass').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) doAuth(false); });
