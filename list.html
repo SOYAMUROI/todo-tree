@@ -37,6 +37,7 @@ header{position:sticky;top:0;z-index:10;background:var(--bg);padding:calc(10px +
 .top{display:flex;align-items:center;gap:12px;padding:0 18px}
 .round{flex:none;width:46px;height:46px;border-radius:50%;border:0;background:var(--btn);box-shadow:var(--shadow);
   display:flex;align-items:center;justify-content:center;position:relative}
+a.round{color:var(--text)}
 .round .dot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--warn)}
 .grow{flex:1}
 .search{flex:1;display:flex;align-items:center;gap:6px;height:42px;padding:0 6px 0 14px;border-radius:21px;background:var(--btn);box-shadow:var(--shadow)}
@@ -171,6 +172,7 @@ textarea.in{resize:none;overflow:hidden;line-height:1.45}
     <button class="round" id="bMenu" aria-label="リスト一覧"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <div class="search" id="searchBox" hidden><input id="q" type="search" placeholder="すべてのリストを検索" enterkeyhint="search"><button id="qClose" aria-label="検索を閉じる">×</button></div>
     <span class="grow" id="spacer"></span>
+    <a class="round" id="bTree" href="index.html" aria-label="TODO Tree（ツリー表示）を開く" title="TODO Tree を開く"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-4h12v4"/></svg></a>
     <button class="round" id="bSearch" aria-label="検索"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></button>
     <button class="round" id="bSet" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><i class="dot" id="setDot" hidden></i></button>
   </div>
@@ -618,14 +620,26 @@ cText.addEventListener('input', () => { autosize(cText); $('cSend').disabled = !
 cText.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); addFromComposer(); } });
 $('cSend').onclick = () => { addFromComposer(); cText.focus(); };
 
-// keep the composer and sheets above the on-screen keyboard
+// keep the composer and sheets above the on-screen keyboard. The sheet is also kept no taller than
+// the part of the screen the keyboard leaves, so its top (and the field being typed in) never slides out of view.
 const vv = window.visualViewport;
 function placeFloating() {
   const off = vv ? Math.max(0, innerHeight - vv.height - vv.offsetTop) : 0;
   composer.style.bottom = off + 'px';
-  if (innerWidth < 720) sheet.style.bottom = off + 'px';
+  if (innerWidth < 720) {
+    sheet.style.bottom = off + 'px';
+    sheet.style.maxHeight = Math.min(innerHeight * .88, (vv ? vv.height : innerHeight) - 12) + 'px';
+  } else sheet.style.bottom = sheet.style.maxHeight = '';
 }
-if (vv) { vv.addEventListener('resize', placeFloating); vv.addEventListener('scroll', placeFloating); }
+// bring the focused field back into view inside the sheet once the keyboard has finished opening
+function showFocused() {
+  const f = document.activeElement;
+  if (f && sheet.contains(f) && /INPUT|TEXTAREA|SELECT/.test(f.tagName)) f.scrollIntoView({ block: 'nearest' });
+}
+let focusTimer = 0;
+const refit = () => { placeFloating(); clearTimeout(focusTimer); focusTimer = setTimeout(showFocused, 60); };
+if (vv) { vv.addEventListener('resize', refit); vv.addEventListener('scroll', placeFloating); }
+sheet.addEventListener('focusin', () => { clearTimeout(focusTimer); focusTimer = setTimeout(() => { placeFloating(); showFocused(); }, 350); });
 
 /* ---------- search ---------- */
 function openSearch() { $('searchBox').hidden = false; $('spacer').hidden = true; $('bSearch').hidden = true; $('q').focus(); }
