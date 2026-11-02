@@ -448,6 +448,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
       <button class="t primary" id="bAdd">＋ タスク</button>
       <button class="t tree-only" id="bLayout" title="ツリー状に整列">ツリー</button>
       <button class="t tree-only" id="bOutline" title="縦並びに整列">縦並び</button>
+      <button class="t tree-only" id="bRight" title="右に広がるツリーに整列">横ツリー</button>
       <button class="t tree-only" id="bSaveManual" title="今のボックスの位置を保存">保存</button>
       <button class="t tree-only" id="bManual" title="保存した位置に戻す" disabled>手動</button>
       <button class="t tree-only" id="bFit" title="全体を表示">全体</button>
@@ -764,7 +765,7 @@ function normalize(s) {
     title: String(s.title || 'TODO Tree').slice(0, 60), nodes, edges,
     view: { x: +v.x || 0, y: +v.y || 0, k: +v.k || 1 },
     mode: ['tree', 'list', 'gantt', 'focus'].includes(s.mode) ? s.mode : 'tree',
-    layout: s.layout === 'outline' ? 'outline' : 'tree',
+    layout: ['tree', 'outline', 'right'].includes(s.layout) ? s.layout : 'tree',
     free: !!s.free,
     layoutAt: +s.layoutAt || (s.free ? 1 : 0),
     manual: normManual(s.manual),
@@ -775,7 +776,7 @@ function normManual(m) {
   if (!m || typeof m.pos !== 'object' || !m.pos) return null;
   const pos = {};
   for (const [id, p] of Object.entries(m.pos)) if (p && isFinite(p.x) && isFinite(p.y)) pos[id] = { x: +p.x, y: +p.y };
-  return { layout: m.layout === 'outline' ? 'outline' : 'tree', pos };
+  return { layout: ['tree', 'outline', 'right'].includes(m.layout) ? m.layout : 'tree', pos };
 }
 function load() {
   try {
@@ -1006,6 +1007,10 @@ function edgePath(a, b, e) {
     const s = portPos(a, e.fp), t = portPos(b, e.tp);
     return { d: portCurve(s, PORT_N[e.fp], t, PORT_N[e.tp]), sx: s.x, sy: s.y, tx: t.x, ty: t.y };
   }
+  if (S.layout === 'right') {
+    const sx = a.x + a._w, sy = a.y + a._h / 2, tx = b.x, ty = b.y + b._h / 2, c = Math.max(24, (tx - sx) / 2);
+    return { d: `M${sx},${sy} C${sx + c},${sy} ${tx - c},${ty} ${tx},${ty}`, sx, sy, tx, ty };
+  }
   const s = anchorOut(a);
   if (S.layout === 'outline') {
     const tx = b.x, ty = b.y + b._h / 2;
@@ -1078,10 +1083,11 @@ const nodeEl = id => nodesEl.querySelector(`[data-id="${CSS.escape(id)}"]`);
 const toWorld = (cx, cy) => ({ x: (cx - S.view.x) / S.view.k, y: (cy - S.view.y) / S.view.k });
 
 /* ---------- actions ---------- */
-// outline re-aligns itself on every change until the user drags a task somewhere by hand
-const autoOutline = () => S.layout === 'outline' && !S.free;
+// 縦並び and 横ツリー re-align themselves on every change until the user drags a task somewhere by hand
+const autoOutline = () => (S.layout === 'outline' || S.layout === 'right') && !S.free;
+const layoutAuto = () => S.layout === 'right' ? layoutRight() : layoutOutline();
 function relayoutIfOutline() {
-  if (S.mode === 'tree' && autoOutline()) { renderTree(); layoutOutline(); }
+  if (S.mode === 'tree' && autoOutline()) { renderTree(); layoutAuto(); renderEdges(); }
 }
 function addNode(x, y, parent, ports) {
   snapshot();
@@ -1266,6 +1272,37 @@ function layoutTree() {
   for (let i = 1; i < rowH.length; i++) rowY[i] = rowY[i - 1] + rowH[i - 1] + DEPTH + 80;
   for (const n of S.nodes) n.y = rowY[depth[n.id]];
 }
+// 横ツリー: the mind-map shape, each level a column to the right of its parent, parents centred on their children
+function layoutRight() {
+  const cmp = sibCmp();
+  const roots = S.nodes.filter(n => !hasParent(n.id)).sort(cmp);
+  const placed = new Set(), depth = {}, GY = 14;
+  let cursor = 0;
+  const place = (id, d) => {
+    placed.add(id); depth[id] = d;
+    const n = byId[id];
+    const kids = children(id).filter(c => !placed.has(c)).map(c => byId[c]).sort(cmp);
+    kids.forEach(k => placed.add(k.id));
+    const ys = kids.map(k => { placed.delete(k.id); return place(k.id, d + 1); });
+    let cy;
+    if (ys.length) {
+      cy = (ys[0] + ys[ys.length - 1]) / 2;
+      cursor = Math.max(cursor, cy + n._h / 2 + GY);
+    } else {
+      cy = cursor + n._h / 2;
+      cursor += n._h + GY;
+    }
+    n.y = Math.round(cy - n._h / 2);
+    return cy;
+  };
+  for (const r of roots) if (!placed.has(r.id)) { place(r.id, 0); cursor += 40; }
+  for (const n of S.nodes) if (!placed.has(n.id)) { place(n.id, 0); cursor += 40; }
+  const colW = [];
+  for (const n of S.nodes) colW[depth[n.id]] = Math.max(colW[depth[n.id]] || 0, n._w);
+  const colX = [0];
+  for (let i = 1; i < colW.length; i++) colX[i] = colX[i - 1] + colW[i - 1] + 70;
+  for (const n of S.nodes) n.x = colX[depth[n.id]];
+}
 function layoutOutline() {
   let y = 0;
   for (const { n, d } of treeOrder()) { n.x = d * 40; n.y = y; y += n._h + DEPTH + 22; }
@@ -1276,7 +1313,7 @@ function layout(kind, record = true) {
   S.layout = kind; S.free = false;
   if (record) S.layoutAt = Date.now();
   renderTree();
-  kind === 'outline' ? layoutOutline() : layoutTree();
+  kind === 'outline' ? layoutOutline() : kind === 'right' ? layoutRight() : layoutTree();
   renderTree(); fit(); save();
 }
 // 保存 keeps the boxes' current places; 手動 brings them back after any auto-arrange or edit.
@@ -2024,7 +2061,7 @@ function setMode(m) {
   syncHH();
   if (m === 'tree') {
     renderTree();
-    if (autoOutline()) { layoutOutline(); renderTree(); }
+    if (autoOutline()) { layoutAuto(); renderTree(); }
     else if (sync.needLayout) { layoutTree(); renderTree(); }
     sync.needLayout = false;
     if (!treeFitted) { fit(false); treeFitted = true; }
@@ -2040,6 +2077,7 @@ $('viewnav').addEventListener('click', e => {
 $('bAdd').onclick = () => (S.mode === 'tree' && sel && sel.type === 'node') ? addChild(sel.id) : addRoot();
 $('bLayout').onclick = () => layout('tree');
 $('bOutline').onclick = () => layout('outline');
+$('bRight').onclick = () => layout('right');
 $('bManual').onclick = manualLayout;
 $('bSaveManual').onclick = saveManual;
 // the toolbar starts folded; whether it is open is remembered on this device only
@@ -2206,7 +2244,7 @@ function applyRemote() {
   if (S.mode === 'tree') {
     renderTree();
     // positions that came with the data are used exactly as they are
-    if (!r.hasPos && autoOutline()) { layoutOutline(); renderTree(); }
+    if (!r.hasPos && autoOutline()) { layoutAuto(); renderTree(); }
     else if (sync.needLayout) { layoutTree(); renderTree(); }
     sync.needLayout = false;
     // the first layout that arrives from another device may sit off screen
@@ -2246,7 +2284,7 @@ async function initFirebase(cfg) {
     const [App, A, F] = await Promise.all([import(FB + 'firebase-app.js'), import(FB + 'firebase-auth.js'), import(FB + 'firebase-firestore.js')]);
     const app = App.initializeApp(cfg);
     let db;
-    try { db = F.initializeFirestore(app, { localCache: F.persistentLocalCache() }); }
+    try { db = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }); }
     catch (e) { db = F.getFirestore(app); }
     fb.api = { A, F, db };
     fb.auth = A.getAuth(app);
@@ -2330,6 +2368,14 @@ if (fresh && isMobile()) S.layout = 'outline';
 { let open = false; try { open = localStorage.getItem(TOOLS_KEY) === '1'; } catch (e) {} setTools(open); }
 setMode(S.mode);
 if (fresh) layout(S.layout, false);
+// shown inside TODOリスト (list.html?embed): open on the tree, and arrange it to grow to the right the first time
+const EMBED = new URLSearchParams(location.search).has('embed');
+if (EMBED) {
+  $('bList').hidden = true;
+  if (S.mode !== 'tree') setMode('tree');
+  let first = true; try { first = !localStorage.getItem('todo-tree-embed-right'); localStorage.setItem('todo-tree-embed-right', '1'); } catch (e) {}
+  if (first && S.layout !== 'right') layout('right', true);
+}
 initSync();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.claude)
   navigator.serviceWorker.register('sw.js').catch(() => {});

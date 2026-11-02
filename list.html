@@ -111,6 +111,22 @@ main.slide-l{animation:slidel .18s ease-out} main.slide-r{animation:slider .18s 
 .trash b{position:absolute;top:-2px;right:-4px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--accent);color:#fff;font-size:11px;line-height:20px}
 .trash b:empty{display:none}
 
+/* ---------- split: the list on the left, TODO Tree on the right (wide screens) ---------- */
+.treepane{display:none}
+body.split .treepane{display:block;position:fixed;z-index:5;top:0;bottom:0;right:0;left:var(--lw);background:#05112a;border-left:1px solid var(--line)}
+.treepane iframe{display:block;width:100%;height:100%;border:0}
+.divider{position:absolute;z-index:1;left:-6px;top:0;bottom:0;width:12px;cursor:col-resize;touch-action:none}
+.divider:hover,.divider.on{background:linear-gradient(90deg,transparent 5px,var(--accent) 5px,var(--accent) 7px,transparent 7px)}
+body.resizing{user-select:none;-webkit-user-select:none;cursor:col-resize}
+body.resizing .treepane iframe{pointer-events:none}
+body.split header,body.split main{width:var(--lw);max-width:none;margin:0}
+body.split .fab{right:auto;left:calc(var(--lw) - 88px)}
+body.split .trash{left:20px}
+body.split .toast{left:calc(var(--lw) / 2)}
+body.split .sheet{left:calc(var(--lw) / 2);width:min(520px,calc(var(--lw) - 24px))}
+body.split .composer{left:calc(var(--lw) / 2);width:min(600px,calc(var(--lw) - 24px))}
+#bTree.on{background:var(--accent);color:#fff}
+
 /* ---------- toast ---------- */
 .toast{position:fixed;z-index:60;left:50%;bottom:calc(104px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;align-items:center;gap:14px;
   padding:10px 10px 10px 18px;border-radius:12px;background:#2b2f33;color:#fff;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.25);white-space:nowrap}
@@ -189,6 +205,7 @@ textarea.in{resize:none;overflow:hidden;line-height:1.45}
   <nav class="tabs" id="tabs"></nav>
 </header>
 <main id="main"></main>
+<div class="treepane" id="treePane"><div class="divider" id="divider" title="ドラッグで幅を変更"></div><iframe id="treeFrame" title="TODO Tree"></iframe></div>
 
 <button class="trash" id="bTrash" aria-label="チェックしたタスクをゴミ箱へ"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg><b id="trashN"></b></button>
 <button class="fab" id="fab" aria-label="タスクを追加"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -251,7 +268,8 @@ function normalize(s) {
       prio: i.prio in PRIO ? i.prio : '', doing: !!i.doing };
   });
   return { lists, items, cur: lists.some(l => l.id === s.cur) ? s.cur : lists[0].id,
-    collapsed: s.collapsed || {}, lastSec: s.lastSec || {}, addTop: !!s.addTop };
+    collapsed: s.collapsed || {}, lastSec: s.lastSec || {}, addTop: !!s.addTop,
+    split: s.split !== false, splitW: +s.splitW || 460 };
 }
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.lists)) return normalize(s); } catch (e) {}
@@ -752,6 +770,32 @@ mainEl.addEventListener('touchend', e => {
   if (next) switchList(next.id, dx < 0 ? 1 : -1);
 });
 
+/* ---------- split view ---------- */
+// wide enough (a PC): the tree button shows TODO Tree beside the list instead of leaving the page
+const wide = () => innerWidth >= 900;
+function applySplit() {
+  const on = S.split && wide();
+  document.body.classList.toggle('split', on);
+  $('bTree').classList.toggle('on', on);
+  if (!on) return;
+  const w = Math.max(340, Math.min(S.splitW, innerWidth - 360));
+  document.body.style.setProperty('--lw', w + 'px');
+  if (!$('treeFrame').src) $('treeFrame').src = 'index.html?embed';
+}
+$('bTree').addEventListener('click', e => {
+  if (!wide()) return; // phones open TODO Tree as its own page
+  e.preventDefault();
+  S.split = !S.split; saveLocal(); applySplit();
+});
+addEventListener('resize', applySplit);
+$('divider').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const d = $('divider'); d.setPointerCapture(e.pointerId); d.classList.add('on'); document.body.classList.add('resizing');
+  const move = ev => { S.splitW = Math.round(ev.clientX); applySplit(); };
+  const up = () => { d.removeEventListener('pointermove', move); d.classList.remove('on'); document.body.classList.remove('resizing'); saveLocal(); };
+  d.addEventListener('pointermove', move); d.addEventListener('pointerup', up, { once: true }); d.addEventListener('pointercancel', up, { once: true });
+});
+
 $('bMenu').onclick = openDrawer;
 $('bSearch').onclick = openSearch;
 $('bSet').onclick = openSettings;
@@ -904,6 +948,7 @@ function paintAcct(box) {
 S = load();
 saveLocal();
 render();
+applySplit();
 if (window.FIREBASE_CONFIG) initFirebase(window.FIREBASE_CONFIG); else setSync('off', 'この端末のみ');
 if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
   navigator.serviceWorker.register('sw.js').catch(() => {});
