@@ -125,7 +125,15 @@ body.split .trash{left:20px}
 body.split .toast{left:calc(var(--lw) / 2)}
 body.split .sheet{left:calc(var(--lw) / 2);width:min(520px,calc(var(--lw) - 24px))}
 body.split .composer{left:calc(var(--lw) / 2);width:min(600px,calc(var(--lw) - 24px))}
-#bTree.on{background:var(--accent);color:#fff}
+#bTree.on,#bCols.on{background:var(--accent);color:#fff}
+@media (max-width:899px){#bCols{display:none}}
+/* the second list column, in the right pane */
+.col2{display:none;position:absolute;inset:0;overflow:auto;background:var(--bg);overscroll-behavior:contain}
+body.pane-list .col2{display:block}
+body.pane-list .treepane iframe{display:none}
+body.pane-list .treepane{background:var(--bg)}
+.col2 .tabs{position:sticky;top:0;z-index:2;background:var(--bg);padding-top:calc(16px + env(safe-area-inset-top))}
+.colmain{padding:0 0 140px 18px;max-width:760px}
 
 /* ---------- toast ---------- */
 .toast{position:fixed;z-index:60;left:50%;bottom:calc(104px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;align-items:center;gap:14px;
@@ -198,6 +206,7 @@ textarea.in{resize:none;overflow:hidden;line-height:1.45}
     <button class="round" id="bMenu" aria-label="リスト一覧"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <div class="search" id="searchBox" hidden><input id="q" type="search" placeholder="すべてのリストを検索" enterkeyhint="search"><button id="qClose" aria-label="検索を閉じる">×</button></div>
     <span class="grow" id="spacer"></span>
+    <button class="round" id="bCols" aria-label="TODOリストを2列に並べる" title="リストを2列に並べる"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="7.5" height="16" rx="1.5"/><rect x="13.5" y="4" width="7.5" height="16" rx="1.5"/></svg></button>
     <a class="round" id="bTree" href="index.html" aria-label="TODO Tree（ツリー表示）を開く" title="TODO Tree を開く"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-4h12v4"/></svg></a>
     <button class="round" id="bSearch" aria-label="検索"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></button>
     <button class="round" id="bSet" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><i class="dot" id="setDot" hidden></i></button>
@@ -205,7 +214,7 @@ textarea.in{resize:none;overflow:hidden;line-height:1.45}
   <nav class="tabs" id="tabs"></nav>
 </header>
 <main id="main"></main>
-<div class="treepane" id="treePane"><div class="divider" id="divider" title="ドラッグで幅を変更"></div><iframe id="treeFrame" title="TODO Tree"></iframe></div>
+<div class="treepane" id="treePane"><div class="divider" id="divider" title="ドラッグで幅を変更"></div><iframe id="treeFrame" title="TODO Tree"></iframe><div class="col2" id="col2"><nav class="tabs" id="tabs2"></nav><div class="colmain" id="main2"></div></div></div>
 
 <button class="trash" id="bTrash" aria-label="チェックしたタスクをゴミ箱へ"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg><b id="trashN"></b></button>
 <button class="fab" id="fab" aria-label="タスクを追加"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -269,7 +278,9 @@ function normalize(s) {
   });
   return { lists, items, cur: lists.some(l => l.id === s.cur) ? s.cur : lists[0].id,
     collapsed: s.collapsed || {}, lastSec: s.lastSec || {}, addTop: !!s.addTop,
-    split: s.split !== false, splitW: +s.splitW || 460 };
+    split: s.split !== false, splitW: +s.splitW || 460,
+    // what the right pane shows: TODO Tree, or a second list next to the first
+    pane: s.pane === 'list' ? 'list' : 'tree', cur2: s.cur2 };
 }
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.lists)) return normalize(s); } catch (e) {}
@@ -305,18 +316,29 @@ $('toastU').onclick = () => {
 };
 
 /* ---------- render ---------- */
-function render() { renderTabs(); renderMain(); $('trashN').textContent = checkedIn(S.cur).length || ''; }
-function renderTabs() {
+const twoCols = () => document.body.classList.contains('pane-list');
+// the lists on screen: the main one, and the right-hand one when two are side by side
+const shownLists = () => twoCols() && S.cur2 !== S.cur ? [S.cur, S.cur2] : [S.cur];
+function render() {
+  if (!S.lists.some(l => l.id === S.cur2)) S.cur2 = (S.lists.find(l => l.id !== S.cur) || S.lists[0]).id;
+  renderTabs(tabsEl, S.cur, switchList); renderMain();
+  if (twoCols()) {
+    renderTabs($('tabs2'), S.cur2, id => { S.cur2 = id; saveLocal(); render(); $('col2').scrollTop = 0; });
+    renderSections($('main2'), S.lists.find(l => l.id === S.cur2));
+  }
+  $('trashN').textContent = shownLists().reduce((n, id) => n + checkedIn(id).length, 0) || '';
+}
+function renderTabs(box, cur, pick) {
   const tabs = S.lists.map(l => {
-    const b = el('button', 'tab' + (l.id === S.cur ? ' on' : ''));
+    const b = el('button', 'tab' + (l.id === cur ? ' on' : ''));
     b.append(el('span', 'tn', l.name || '（無題）'), el('span', 'tc', openCount(l.id)));
     // tap switches; tapping the open tab again edits it
-    b.onclick = () => l.id === S.cur ? editList(l.id) : switchList(l.id);
+    b.onclick = () => l.id === cur ? editList(l.id) : pick(l.id);
     return b;
   });
   const add = el('button', 'tab add', '＋'); add.setAttribute('aria-label', 'リストを追加'); add.onclick = newList;
-  tabsEl.replaceChildren(...tabs, add);
-  const on = tabsEl.querySelector('.tab.on');
+  box.replaceChildren(...tabs, add);
+  const on = box.querySelector('.tab.on');
   if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 function row(it, where) {
@@ -340,7 +362,9 @@ function row(it, where) {
 }
 function renderMain() {
   if (query) return renderSearch();
-  const l = curList();
+  renderSections(mainEl, curList());
+}
+function renderSections(box0, l) {
   const secs = l.sections.map(x => {
     const open = openIn(x.id), closed = !!S.collapsed[x.id];
     const s = el('section', 'sec' + (closed ? ' closed' : '')); s.dataset.sec = x.id;
@@ -348,7 +372,7 @@ function renderMain() {
     const name = el('button', 'sname', x.name || '（無題）'); name.onclick = () => editList(l.id, x.id);
     const fold = el('button', 'sfold'); fold.setAttribute('aria-label', closed ? '開く' : '閉じる');
     fold.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
-    const toggle = () => { if (S.collapsed[x.id]) delete S.collapsed[x.id]; else S.collapsed[x.id] = true; saveLocal(); renderMain(); };
+    const toggle = () => { if (S.collapsed[x.id]) delete S.collapsed[x.id]; else S.collapsed[x.id] = true; saveLocal(); render(); };
     fold.onclick = toggle;
     const cnt = el('span', 'scount', open.filter(i => !i.done).length); cnt.onclick = toggle;
     h.append(name, cnt, fold);
@@ -360,7 +384,7 @@ function renderMain() {
   });
   const add = el('button', 'addsec', '＋ セクションを追加');
   add.onclick = () => { const x = { id: uid(), name: '新しいセクション' }; l.sections.push(x); commit(); editList(l.id, x.id); };
-  mainEl.replaceChildren(...secs, add);
+  box0.replaceChildren(...secs, add);
 }
 function renderSearch() {
   const q = query.toLowerCase();
@@ -386,7 +410,7 @@ function toggleCheck(id) {
 }
 // the bin button: checked tasks of this list go into the bin; with none checked it shows what is in there
 function binChecked() {
-  const done = checkedIn(S.cur);
+  const done = shownLists().flatMap(checkedIn);
   if (!done.length) return openTrash();
   const snap = snapshot(), now = Date.now();
   for (const it of done) { it.trash = true; it.doneAt = now; }
@@ -696,21 +720,29 @@ $('qClose').onclick = closeSearch;
 
 /* ---------- reorder by long press, and swipe between tabs ---------- */
 let drag = null, justDragged = false;
-function beginDrag(r, y) {
+function beginDrag(r, x, y) {
   const it = findItem(r.dataset.id); if (!it) return;
   const b = r.getBoundingClientRect(), ph = el('div', 'ph');
   ph.style.height = b.height + 'px';
   r.before(ph);
   r.classList.add('dragging');
   Object.assign(r.style, { position: 'fixed', left: b.left + 'px', top: b.top + 'px', width: b.width + 'px' });
-  drag = { r, ph, it, dy: y - b.top, y, target: it.sec };
+  drag = { r, ph, it, dy: y - b.top, dx: x - b.left, x, y, target: it.sec };
   if (navigator.vibrate) navigator.vibrate(12);
   requestAnimationFrame(autoScroll);
 }
-function moveDrag(y) { drag.y = y; drag.r.style.top = y - drag.dy + 'px'; placeDrop(); }
+function moveDrag(x, y) {
+  drag.x = x; drag.y = y;
+  drag.r.style.top = y - drag.dy + 'px';
+  if (twoCols()) drag.r.style.left = x - drag.dx + 'px';
+  placeDrop();
+}
+// the column under the pointer
+const colAt = x => twoCols() && x > $('treePane').getBoundingClientRect().left ? $('main2') : mainEl;
 function placeDrop() {
-  const y = drag.y, secs = [...mainEl.querySelectorAll('.sec')];
+  const y = drag.y, secs = [...colAt(drag.x).querySelectorAll('.sec')];
   if (!secs.length) return;
+  document.querySelectorAll('.sec.drop').forEach(s => s.classList.remove('drop'));
   const sec = secs.find(s => { const b = s.getBoundingClientRect(); return y >= b.top && y < b.bottom; })
     || (y < secs[0].getBoundingClientRect().top ? secs[0] : secs[secs.length - 1]);
   secs.forEach(s => s.classList.toggle('drop', s === sec && s.classList.contains('closed')));
@@ -728,6 +760,7 @@ function endDrag() {
     ? [...ph.parentNode.children].filter(c => c === ph || (c.classList.contains('item') && c !== r)).map(c => c === ph ? it.id : c.dataset.id)
     : [...openIn(target).filter(i => i !== it).map(i => i.id), it.id];
   it.sec = target;
+  it.list = S.lists.find(l => l.sections.some(x => x.id === target)).id;
   ids.forEach((id, n) => { const x = findItem(id); if (x) x.order = n; });
   justDragged = true; setTimeout(() => { justDragged = false; }, 60);
   commit(); applyRemote();
@@ -736,27 +769,30 @@ function autoScroll() {
   if (!drag) return;
   const top = document.querySelector('header').getBoundingClientRect().bottom;
   const v = drag.y < top + 50 ? -9 : drag.y > innerHeight - 80 ? 9 : 0;
-  if (v) { scrollBy(0, v); placeDrop(); }
+  if (v) { if (colAt(drag.x) === mainEl) scrollBy(0, v); else $('col2').scrollBy(0, v); placeDrop(); }
   requestAnimationFrame(autoScroll);
 }
-mainEl.addEventListener('pointerdown', e => {
+const onPress = e => {
   const r = e.target.closest('.item');
-  if (!r || e.target.closest('.circle') || query || drag) return;
+  if (!r || e.target.closest('.circle') || (query && r.closest('#main')) || drag) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   const pid = e.pointerId, sx = e.clientX, sy = e.clientY, mouse = e.pointerType === 'mouse';
-  let timer = setTimeout(() => { timer = 0; beginDrag(r, sy); }, mouse ? 300 : 400);
+  let timer = setTimeout(() => { timer = 0; beginDrag(r, sx, sy); }, mouse ? 300 : 400);
   const stop = () => { clearTimeout(timer); timer = 0; removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); };
   const move = ev => {
     if (ev.pointerId !== pid) return;
-    if (drag) return moveDrag(ev.clientY);
+    if (drag) return moveDrag(ev.clientX, ev.clientY);
     if (timer && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) {
       // with a mouse, moving while pressed picks the task up straight away
-      if (mouse) { clearTimeout(timer); timer = 0; beginDrag(r, sy); moveDrag(ev.clientY); } else stop();
+      if (mouse) { clearTimeout(timer); timer = 0; beginDrag(r, sx, sy); moveDrag(ev.clientX, ev.clientY); } else stop();
     }
   };
   const up = ev => { if (ev.pointerId !== pid) return; const was = !!drag; stop(); if (was) endDrag(); };
   addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
-});
+};
+mainEl.addEventListener('pointerdown', onPress);
+$('main2').addEventListener('pointerdown', onPress);
+$('main2').addEventListener('contextmenu', e => { if (e.target.closest('.item')) e.preventDefault(); });
 addEventListener('touchmove', e => { if (drag) e.preventDefault(); }, { passive: false });
 mainEl.addEventListener('contextmenu', e => { if (e.target.closest('.item')) e.preventDefault(); });
 let swipe = null;
@@ -774,19 +810,30 @@ mainEl.addEventListener('touchend', e => {
 // wide enough (a PC): the tree button shows TODO Tree beside the list instead of leaving the page
 const wide = () => innerWidth >= 900;
 function applySplit() {
-  const on = S.split && wide();
+  const on = S.split && wide(), lists = on && S.pane === 'list';
+  const was = twoCols();
   document.body.classList.toggle('split', on);
-  $('bTree').classList.toggle('on', on);
-  if (!on) return;
-  const w = Math.max(340, Math.min(S.splitW, innerWidth - 360));
-  document.body.style.setProperty('--lw', w + 'px');
-  if (!$('treeFrame').src) $('treeFrame').src = 'index.html?embed';
+  document.body.classList.toggle('pane-list', lists);
+  $('bTree').classList.toggle('on', on && !lists);
+  $('bCols').classList.toggle('on', lists);
+  if (on) {
+    const w = Math.max(340, Math.min(S.splitW, innerWidth - 360));
+    document.body.style.setProperty('--lw', w + 'px');
+    if (!lists && !$('treeFrame').src) $('treeFrame').src = 'index.html?embed';
+  }
+  if (was !== lists) render();
+}
+// each button shows its own thing on the right, and hides it again when pressed a second time
+function showPane(pane) {
+  S.split = !(S.split && S.pane === pane); S.pane = pane;
+  saveLocal(); applySplit();
 }
 $('bTree').addEventListener('click', e => {
   if (!wide()) return; // phones open TODO Tree as its own page
   e.preventDefault();
-  S.split = !S.split; saveLocal(); applySplit();
+  showPane('tree');
 });
+$('bCols').onclick = () => showPane('list');
 addEventListener('resize', applySplit);
 $('divider').addEventListener('pointerdown', e => {
   e.preventDefault();
