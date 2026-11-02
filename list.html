@@ -111,11 +111,12 @@ main.slide-l{animation:slidel .18s ease-out} main.slide-r{animation:slider .18s 
 .trash b{position:absolute;top:-2px;right:-4px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--accent);color:#fff;font-size:11px;line-height:20px}
 .trash b:empty{display:none}
 
-/* ---------- split: the list on the left, TODO Tree on the right (wide screens) ---------- */
+/* ---------- split (wide screens): the list on the left, then a second list and/or TODO Tree ---------- */
 .treepane{display:none}
-body.split .treepane{display:block;position:fixed;z-index:5;top:0;bottom:0;right:0;left:var(--lw);background:#05112a;border-left:1px solid var(--line)}
+body.pane-tree .treepane{display:block;position:fixed;z-index:5;top:0;bottom:0;right:0;left:var(--tl);background:#05112a;border-left:1px solid var(--line)}
 .treepane iframe{display:block;width:100%;height:100%;border:0}
-.divider{position:absolute;z-index:1;left:-6px;top:0;bottom:0;width:12px;cursor:col-resize;touch-action:none}
+.divider{display:none;position:fixed;z-index:7;left:calc(var(--lw) - 6px);top:0;bottom:0;width:12px;cursor:col-resize;touch-action:none}
+body.split .divider{display:block}
 .divider:hover,.divider.on{background:linear-gradient(90deg,transparent 5px,var(--accent) 5px,var(--accent) 7px,transparent 7px)}
 body.resizing{user-select:none;-webkit-user-select:none;cursor:col-resize}
 body.resizing .treepane iframe{pointer-events:none}
@@ -128,10 +129,9 @@ body.split .composer{left:calc(var(--lw) / 2);width:min(600px,calc(var(--lw) - 2
 #bTree.on,#bCols.on{background:var(--accent);color:#fff}
 @media (max-width:899px){#bCols{display:none}}
 /* the second list column, in the right pane */
-.col2{display:none;position:absolute;inset:0;overflow:auto;background:var(--bg);overscroll-behavior:contain}
+.col2{display:none;position:fixed;z-index:5;top:0;bottom:0;left:var(--lw);right:0;overflow:auto;background:var(--bg);border-left:1px solid var(--line);overscroll-behavior:contain}
 body.pane-list .col2{display:block}
-body.pane-list .treepane iframe{display:none}
-body.pane-list .treepane{background:var(--bg)}
+body.pane-list.pane-tree .col2{right:auto;width:var(--lw)}
 .col2 .tabs{position:sticky;top:0;z-index:2;background:var(--bg);padding-top:calc(16px + env(safe-area-inset-top))}
 .colmain{padding:0 0 140px 18px;max-width:760px}
 
@@ -214,7 +214,9 @@ textarea.in{resize:none;overflow:hidden;line-height:1.45}
   <nav class="tabs" id="tabs"></nav>
 </header>
 <main id="main"></main>
-<div class="treepane" id="treePane"><div class="divider" id="divider" title="ドラッグで幅を変更"></div><iframe id="treeFrame" title="TODO Tree"></iframe><div class="col2" id="col2"><nav class="tabs" id="tabs2"></nav><div class="colmain" id="main2"></div></div></div>
+<div class="col2" id="col2"><nav class="tabs" id="tabs2"></nav><div class="colmain" id="main2"></div></div>
+<div class="treepane" id="treePane"><iframe id="treeFrame" title="TODO Tree"></iframe></div>
+<div class="divider" id="divider" title="ドラッグで幅を変更"></div>
 
 <button class="trash" id="bTrash" aria-label="チェックしたタスクをゴミ箱へ"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg><b id="trashN"></b></button>
 <button class="fab" id="fab" aria-label="タスクを追加"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -278,9 +280,10 @@ function normalize(s) {
   });
   return { lists, items, cur: lists.some(l => l.id === s.cur) ? s.cur : lists[0].id,
     collapsed: s.collapsed || {}, lastSec: s.lastSec || {}, addTop: !!s.addTop,
-    split: s.split !== false, splitW: +s.splitW || 460,
-    // what the right pane shows: TODO Tree, or a second list next to the first
-    pane: s.pane === 'list' ? 'list' : 'tree', cur2: s.cur2 };
+    splitW: +s.splitW || 460, cur2: s.cur2,
+    // beside the list: TODO Tree and/or a second list (earlier versions showed one or the other)
+    showTree: 'showTree' in s ? !!s.showTree : s.split !== false && s.pane !== 'list',
+    showCols: 'showCols' in s ? !!s.showCols : s.split !== false && s.pane === 'list' };
 }
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.lists)) return normalize(s); } catch (e) {}
@@ -738,7 +741,7 @@ function moveDrag(x, y) {
   placeDrop();
 }
 // the column under the pointer
-const colAt = x => twoCols() && x > $('treePane').getBoundingClientRect().left ? $('main2') : mainEl;
+const colAt = x => twoCols() && x > $('col2').getBoundingClientRect().left ? $('main2') : mainEl;
 function placeDrop() {
   const y = drag.y, secs = [...colAt(drag.x).querySelectorAll('.sec')];
   if (!secs.length) return;
@@ -810,30 +813,29 @@ mainEl.addEventListener('touchend', e => {
 // wide enough (a PC): the tree button shows TODO Tree beside the list instead of leaving the page
 const wide = () => innerWidth >= 900;
 function applySplit() {
-  const on = S.split && wide(), lists = on && S.pane === 'list';
+  const tree = S.showTree && wide(), lists = S.showCols && wide();
   const was = twoCols();
-  document.body.classList.toggle('split', on);
+  document.body.classList.toggle('split', tree || lists);
+  document.body.classList.toggle('pane-tree', tree);
   document.body.classList.toggle('pane-list', lists);
-  $('bTree').classList.toggle('on', on && !lists);
+  $('bTree').classList.toggle('on', tree);
   $('bCols').classList.toggle('on', lists);
-  if (on) {
-    const w = Math.max(340, Math.min(S.splitW, innerWidth - 360));
+  if (tree || lists) {
+    // all three: the two lists share the width the tree leaves them
+    const w = Math.max(300, Math.min(S.splitW, (innerWidth - 360) / (tree && lists ? 2 : 1)));
     document.body.style.setProperty('--lw', w + 'px');
-    if (!lists && !$('treeFrame').src) $('treeFrame').src = 'index.html?embed';
+    document.body.style.setProperty('--tl', (lists ? 2 * w : w) + 'px');
+    if (tree && !$('treeFrame').src) $('treeFrame').src = 'index.html?embed';
   }
   if (was !== lists) render();
 }
-// each button shows its own thing on the right, and hides it again when pressed a second time
-function showPane(pane) {
-  S.split = !(S.split && S.pane === pane); S.pane = pane;
-  saveLocal(); applySplit();
-}
+// each button shows or hides its own pane; with both on there are three
 $('bTree').addEventListener('click', e => {
   if (!wide()) return; // phones open TODO Tree as its own page
   e.preventDefault();
-  showPane('tree');
+  S.showTree = !S.showTree; saveLocal(); applySplit();
 });
-$('bCols').onclick = () => showPane('list');
+$('bCols').onclick = () => { S.showCols = !S.showCols; saveLocal(); applySplit(); };
 addEventListener('resize', applySplit);
 $('divider').addEventListener('pointerdown', e => {
   e.preventDefault();
