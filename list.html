@@ -1004,6 +1004,9 @@ applySplit();
 if (window.FIREBASE_CONFIG) initFirebase(window.FIREBASE_CONFIG); else setSync('off', 'この端末のみ');
 if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
   navigator.serviceWorker.register('sw.js').catch(() => {});
+// a newer version took over (it activates straight away): reload once so the new page is what is on screen
+if ('serviceWorker' in navigator && navigator.serviceWorker.controller)
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!window.__reloading) { window.__reloading = true; location.reload(); } });
 </script>
 </body>
 </html>

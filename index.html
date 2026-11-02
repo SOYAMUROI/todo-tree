@@ -2386,6 +2386,9 @@ if (EMBED) {
 initSync();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.claude)
   navigator.serviceWorker.register('sw.js').catch(() => {});
+// a newer version took over (it activates straight away): reload once so the new page is what is on screen
+if ('serviceWorker' in navigator && navigator.serviceWorker.controller)
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!window.__reloading) { window.__reloading = true; location.reload(); } });
 </script>
 </body>
 </html>
