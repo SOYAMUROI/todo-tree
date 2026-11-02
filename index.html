@@ -446,9 +446,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   <div class="row2 folded" id="row2">
     <div class="tools">
       <button class="t primary" id="bAdd">＋ タスク</button>
-      <button class="t tree-only" id="bLayout" title="ツリー状に整列">ツリー</button>
       <button class="t tree-only" id="bOutline" title="縦並びに整列">縦並び</button>
-      <button class="t tree-only" id="bRight" title="右に広がるツリーに整列">横ツリー</button>
       <button class="t tree-only" id="bSaveManual" title="今のボックスの位置を保存">保存</button>
       <button class="t tree-only" id="bManual" title="保存した位置に戻す" disabled>手動</button>
       <button class="t tree-only" id="bFit" title="全体を表示">全体</button>
@@ -765,7 +763,8 @@ function normalize(s) {
     title: String(s.title || 'TODO Tree').slice(0, 60), nodes, edges,
     view: { x: +v.x || 0, y: +v.y || 0, k: +v.k || 1 },
     mode: ['tree', 'list', 'gantt', 'focus'].includes(s.mode) ? s.mode : 'tree',
-    layout: ['tree', 'outline', 'right'].includes(s.layout) ? s.layout : 'tree',
+    // 縦並び is the only automatic arrangement; a hand-placed board keeps the lines of the layout it was placed in
+    layout: s.free && ['tree', 'outline', 'right'].includes(s.layout) ? s.layout : 'outline',
     free: !!s.free,
     layoutAt: +s.layoutAt || (s.free ? 1 : 0),
     manual: normManual(s.manual),
@@ -2085,9 +2084,7 @@ $('viewnav').addEventListener('click', e => {
   if (m && m !== S.mode) setMode(m);
 });
 $('bAdd').onclick = () => (S.mode === 'tree' && sel && sel.type === 'node') ? addChild(sel.id) : addRoot();
-$('bLayout').onclick = () => layout('tree');
 $('bOutline').onclick = () => layout('outline');
-$('bRight').onclick = () => layout('right');
 $('bManual').onclick = manualLayout;
 $('bSaveManual').onclick = saveManual;
 // the toolbar starts folded; whether it is open is remembered on this device only
@@ -2254,7 +2251,8 @@ function applyRemote() {
   if (S.mode === 'tree') {
     renderTree();
     // positions that came with the data are used exactly as they are
-    if (!r.hasPos && autoOutline()) { layoutAuto(); renderTree(); }
+    // 縦並び follows the task order, so it is laid out here even when the other device sent positions
+    if (autoOutline()) { layoutAuto(); renderTree(); }
     else if (sync.needLayout) { layoutTree(); renderTree(); }
     sync.needLayout = false;
     // the first layout that arrives from another device may sit off screen
@@ -2374,17 +2372,15 @@ async function initSync() {
 S = load();
 const fresh = S.fresh; delete S.fresh;
 index(); setTitle();
-if (fresh && isMobile()) S.layout = 'outline';
+if (fresh) S.layout = 'outline';
 { let open = false; try { open = localStorage.getItem(TOOLS_KEY) === '1'; } catch (e) {} setTools(open); }
 setMode(S.mode);
 if (fresh) layout(S.layout, false);
-// shown inside TODOリスト (list.html?embed): open on the tree, and arrange it to grow to the right the first time
+// shown inside TODOリスト (list.html?embed): open on the tree
 const EMBED = new URLSearchParams(location.search).has('embed');
 if (EMBED) {
   $('bList').hidden = true;
   if (S.mode !== 'tree') setMode('tree');
-  let first = true; try { first = !localStorage.getItem('todo-tree-embed-right'); localStorage.setItem('todo-tree-embed-right', '1'); } catch (e) {}
-  if (first && S.layout !== 'right') layout('right', true);
 }
 initSync();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.claude)
