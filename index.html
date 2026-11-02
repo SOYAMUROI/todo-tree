@@ -1003,13 +1003,23 @@ function curve(s, tx, ty) {
   return `M${s.x},${s.y} C${s.x},${s.y + c} ${tx},${ty - c} ${tx},${ty}`;
 }
 function edgePath(a, b, e) {
+  // 横ツリー: every parent/child line leaves the parent's right edge, runs down a shared trunk and enters
+  // the child's left edge, whatever points it was first drawn between (関連 links keep theirs)
+  if (S.layout === 'right' && !(e && e.rel)) {
+    const sx = a.x + a._w, sy = a.y + a._h / 2, tx = b.x, ty = b.y + b._h / 2;
+    if (tx > sx + 12) {
+      const mx = sx + Math.min(28, (tx - sx) / 2), dy = ty - sy, dir = Math.sign(dy);
+      const r = Math.min(10, Math.abs(dy) / 2, tx - mx);
+      const d = Math.abs(dy) < 1 ? `M${sx},${sy} L${tx},${ty}`
+        : `M${sx},${sy} L${mx - r},${sy} Q${mx},${sy} ${mx},${sy + dir * r} L${mx},${ty - dir * r} Q${mx},${ty} ${mx + r},${ty} L${tx},${ty}`;
+      return { d, sx, sy, tx, ty };
+    }
+    const c = Math.max(40, Math.abs(tx - sx) / 2);
+    return { d: `M${sx},${sy} C${sx + c},${sy} ${tx - c},${ty} ${tx},${ty}`, sx, sy, tx, ty };
+  }
   if (e && e.fp) {
     const s = portPos(a, e.fp), t = portPos(b, e.tp);
     return { d: portCurve(s, PORT_N[e.fp], t, PORT_N[e.tp]), sx: s.x, sy: s.y, tx: t.x, ty: t.y };
-  }
-  if (S.layout === 'right') {
-    const sx = a.x + a._w, sy = a.y + a._h / 2, tx = b.x, ty = b.y + b._h / 2, c = Math.max(24, (tx - sx) / 2);
-    return { d: `M${sx},${sy} C${sx + c},${sy} ${tx - c},${ty} ${tx},${ty}`, sx, sy, tx, ty };
   }
   const s = anchorOut(a);
   if (S.layout === 'outline') {
