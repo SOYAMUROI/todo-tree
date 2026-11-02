@@ -446,7 +446,7 @@ kbd{font:inherit;font-size:10px;padding:0 4px;border:1px solid rgba(123,147,196,
   <div class="row2 folded" id="row2">
     <div class="tools">
       <button class="t primary" id="bAdd">＋ タスク</button>
-      <button class="t tree-only" id="bOutline" title="縦並びに整列">縦並び</button>
+      <button class="t tree-only" id="bAlign" title="1・2階層目を縦にそろえて並べ直す">整列</button>
       <button class="t tree-only" id="bSaveManual" title="今のボックスの位置を保存">保存</button>
       <button class="t tree-only" id="bManual" title="保存した位置に戻す" disabled>手動</button>
       <button class="t tree-only" id="bFit" title="全体を表示">全体</button>
@@ -763,8 +763,8 @@ function normalize(s) {
     title: String(s.title || 'TODO Tree').slice(0, 60), nodes, edges,
     view: { x: +v.x || 0, y: +v.y || 0, k: +v.k || 1 },
     mode: ['tree', 'list', 'gantt', 'focus'].includes(s.mode) ? s.mode : 'tree',
-    // 縦並び is the only automatic arrangement; a hand-placed board keeps the lines of the layout it was placed in
-    layout: s.free && ['tree', 'outline', 'right'].includes(s.layout) ? s.layout : 'outline',
+    // one automatic arrangement (layoutRight); a hand-placed board keeps the lines of the layout it was placed in
+    layout: s.free && ['tree', 'outline', 'right'].includes(s.layout) ? s.layout : 'right',
     free: !!s.free,
     layoutAt: +s.layoutAt || (s.free ? 1 : 0),
     manual: normManual(s.manual),
@@ -1281,18 +1281,19 @@ function layoutTree() {
   for (let i = 1; i < rowH.length; i++) rowY[i] = rowY[i - 1] + rowH[i - 1] + DEPTH + 80;
   for (const n of S.nodes) n.y = rowY[depth[n.id]];
 }
-// 横ツリー: the mind-map shape, each level a column to the right of its parent, parents centred on their children
+// The board's arrangement: a mind map growing to the right, parents centred on their children.
+// The first two levels each line up in a column; deeper tasks sit just to the right of their own parent.
 function layoutRight() {
   const cmp = sibCmp();
   const roots = S.nodes.filter(n => !hasParent(n.id)).sort(cmp);
-  const placed = new Set(), depth = {}, GY = 14;
+  const placed = new Set(), depth = {}, parent = {}, GY = 14;
   let cursor = 0;
   const place = (id, d) => {
     placed.add(id); depth[id] = d;
     const n = byId[id];
     const kids = children(id).filter(c => !placed.has(c)).map(c => byId[c]).sort(cmp);
     kids.forEach(k => placed.add(k.id));
-    const ys = kids.map(k => { placed.delete(k.id); return place(k.id, d + 1); });
+    const ys = kids.map(k => { placed.delete(k.id); parent[k.id] = id; return place(k.id, d + 1); });
     let cy;
     if (ys.length) {
       cy = (ys[0] + ys[ys.length - 1]) / 2;
@@ -1306,11 +1307,11 @@ function layoutRight() {
   };
   for (const r of roots) if (!placed.has(r.id)) { place(r.id, 0); cursor += 40; }
   for (const n of S.nodes) if (!placed.has(n.id)) { place(n.id, 0); cursor += 40; }
-  const colW = [];
-  for (const n of S.nodes) colW[depth[n.id]] = Math.max(colW[depth[n.id]] || 0, n._w);
-  const colX = [0];
-  for (let i = 1; i < colW.length; i++) colX[i] = colX[i - 1] + colW[i - 1] + 70;
-  for (const n of S.nodes) n.x = colX[depth[n.id]];
+  const rootW = Math.max(0, ...S.nodes.filter(n => depth[n.id] === 0).map(n => n._w));
+  for (const n of [...S.nodes].sort((a, b) => depth[a.id] - depth[b.id])) {
+    const d = depth[n.id], p = byId[parent[n.id]];
+    n.x = d === 0 ? 0 : d === 1 ? rootW + 70 : p.x + p._w + 50;
+  }
 }
 function layoutOutline() {
   let y = 0;
@@ -2084,8 +2085,8 @@ $('viewnav').addEventListener('click', e => {
   if (m && m !== S.mode) setMode(m);
 });
 $('bAdd').onclick = () => (S.mode === 'tree' && sel && sel.type === 'node') ? addChild(sel.id) : addRoot();
-$('bOutline').onclick = () => layout('outline');
 $('bManual').onclick = manualLayout;
+$('bAlign').onclick = () => layout('right');
 $('bSaveManual').onclick = saveManual;
 // the toolbar starts folded; whether it is open is remembered on this device only
 const TOOLS_KEY = 'todo-tree-tools-open';
@@ -2251,7 +2252,7 @@ function applyRemote() {
   if (S.mode === 'tree') {
     renderTree();
     // positions that came with the data are used exactly as they are
-    // 縦並び follows the task order, so it is laid out here even when the other device sent positions
+    // the arrangement follows the task order, so it is laid out here even when the other device sent positions
     if (autoOutline()) { layoutAuto(); renderTree(); }
     else if (sync.needLayout) { layoutTree(); renderTree(); }
     sync.needLayout = false;
@@ -2372,7 +2373,7 @@ async function initSync() {
 S = load();
 const fresh = S.fresh; delete S.fresh;
 index(); setTitle();
-if (fresh) S.layout = 'outline';
+if (fresh) S.layout = 'right';
 { let open = false; try { open = localStorage.getItem(TOOLS_KEY) === '1'; } catch (e) {} setTools(open); }
 setMode(S.mode);
 if (fresh) layout(S.layout, false);
