@@ -70,12 +70,11 @@ main.slide-l{animation:slidel .18s ease-out} main.slide-r{animation:slider .18s 
 .item{position:relative;display:flex;align-items:center;gap:16px;min-height:58px;margin-left:-18px;padding:10px 18px;
   user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:pointer;background:var(--bg)}
 .item::after{content:"";position:absolute;left:62px;right:0;bottom:0;border-bottom:1px solid var(--line)}
-/* the date column, left of the check circle; kept even when empty so the tasks line up */
-.dcol{flex:none;width:68px;margin-right:-4px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* the date column, right of the check circle; kept even when empty so the tasks line up */
+.dcol{flex:none;width:68px;margin-right:-4px;font-size:13px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
 .dcol.today{color:var(--accent);font-weight:700}
 .dcol.late{color:var(--warn)}
 .item.checked .dcol{opacity:.5}
-.item:has(.dcol)::after{left:146px}
 .cdate{flex:none;font:inherit;font-size:13px;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:5px 10px}
 .item.c-pink{background:var(--c-pink)} .item.c-yellow{background:var(--c-yellow)} .item.c-blue{background:var(--c-blue)}
 .item.c-green{background:var(--c-green)} .item.c-gray{background:var(--c-gray)}
@@ -376,7 +375,7 @@ function row(it, where) {
   if (where) t.append(el('div', 'where', where));
   t.append(document.createTextNode(it.text));
   if (it.memo) t.append(el('div', 'memo', it.memo));
-  r.append(dateCell(it), c, t);
+  r.append(c, dateCell(it), t);
   if (it.prio || it.doing) {
     const tags = el('div', 'tags');
     if (it.prio) tags.append(el('span', 'tag ' + it.prio, PRIO[it.prio]));
