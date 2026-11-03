@@ -70,6 +70,13 @@ main.slide-l{animation:slidel .18s ease-out} main.slide-r{animation:slider .18s 
 .item{position:relative;display:flex;align-items:center;gap:16px;min-height:58px;margin-left:-18px;padding:10px 18px;
   user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:pointer;background:var(--bg)}
 .item::after{content:"";position:absolute;left:62px;right:0;bottom:0;border-bottom:1px solid var(--line)}
+/* the date column, left of the check circle; kept even when empty so the tasks line up */
+.dcol{flex:none;width:68px;margin-right:-4px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dcol.today{color:var(--accent);font-weight:700}
+.dcol.late{color:var(--warn)}
+.item.checked .dcol{opacity:.5}
+.item:has(.dcol)::after{left:146px}
+.cdate{flex:none;font:inherit;font-size:13px;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:5px 10px}
 .item.c-pink{background:var(--c-pink)} .item.c-yellow{background:var(--c-yellow)} .item.c-blue{background:var(--c-blue)}
 .item.c-green{background:var(--c-green)} .item.c-gray{background:var(--c-gray)}
 .circle{flex:none;position:relative;width:28px;height:28px;border-radius:50%;border:1.5px solid #a8acb1;background:transparent;padding:0}
@@ -279,7 +286,7 @@ function normalize(s) {
     return { id: String(i.id), list, sec: listOf[i.sec] === l ? String(i.sec) : l.sections[0].id, text: String(i.text ?? ''),
       // before the bin button existed, a checked task went straight into the bin
       done: !!i.done, doneAt: +i.doneAt || 0, trash: 'trash' in i ? !!i.trash : !!i.done, color: i.color in COLORS ? i.color : '', memo: String(i.memo || ''), order: +i.order || 0,
-      prio: i.prio in PRIO ? i.prio : '', doing: !!i.doing };
+      prio: i.prio in PRIO ? i.prio : '', doing: !!i.doing, date: /^\d{4}-\d{2}-\d{2}$/.test(i.date) ? i.date : '' };
   });
   return { lists, items, cur: lists.some(l => l.id === s.cur) ? s.cur : lists[0].id,
     collapsed: s.collapsed || {}, lastSec: s.lastSec || {}, addTop: !!s.addTop,
@@ -347,6 +354,19 @@ function renderTabs(box, cur, pick) {
   const on = box.querySelector('.tab.on');
   if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
+// 2026-11-23 -> 11/23(月)
+const WD = '日月火水木金土';
+const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function dateText(s) {
+  if (!s) return '';
+  const [y, m, d] = s.split('-').map(Number);
+  return `${m}/${d}(${WD[new Date(y, m - 1, d).getDay()]})`;
+}
+function dateCell(it) {
+  const today = localDay(), c = el('div', 'dcol', dateText(it.date));
+  if (it.date && !it.done && it.date <= today) c.classList.add(it.date === today ? 'today' : 'late');
+  return c;
+}
 function row(it, where) {
   const r = el('div', 'item' + (it.color ? ' c-' + it.color : '') + (it.done ? ' checked' : ''));
   r.dataset.id = it.id;
@@ -356,7 +376,7 @@ function row(it, where) {
   if (where) t.append(el('div', 'where', where));
   t.append(document.createTextNode(it.text));
   if (it.memo) t.append(el('div', 'memo', it.memo));
-  r.append(c, t);
+  r.append(dateCell(it), c, t);
   if (it.prio || it.doing) {
     const tags = el('div', 'tags');
     if (it.prio) tags.append(el('span', 'tag ' + it.prio, PRIO[it.prio]));
@@ -496,6 +516,8 @@ function editItem(id) {
     box.append(el('label', '', '優先度'), seg(Object.entries(PRIO), it.prio, v => { it.prio = v; touched(); }));
     box.append(el('label', '', '状態'), seg([[false, '未対応'], [true, '対応中']], it.doing, v => { it.doing = v; touched(); }));
     box.append(el('label', '', '色'), swatches(it.color, c => { it.color = c; touched(); }));
+    const date = field(box, '日付', el('input', 'in')); date.type = 'date'; date.value = it.date;
+    date.onchange = () => { it.date = date.value; touched(); };
     const memo = field(box, 'メモ', el('textarea', 'in')); memo.value = it.memo; memo.rows = 2;
     memo.oninput = () => { it.memo = memo.value; autosize(memo); touched(); };
     const acts = el('div', 'acts'), del = el('button', 'b warn', '削除'), save = el('button', 'b pri', '保存');
@@ -655,11 +677,12 @@ function openDrawer() {
 function closeDrawer() { if (drawer.hidden) return; drawer.hidden = true; scrim.hidden = true; }
 
 /* ---------- composer (＋) ---------- */
-const comp = { sec: null, color: '' };
+const comp = { sec: null, color: '', date: '' };
 function openComposer() {
   closeAll();
   const l = curList();
   comp.sec = l.sections.some(x => x.id === S.lastSec[l.id]) ? S.lastSec[l.id] : l.sections[0].id;
+  comp.date = '';
   paintComposer();
   composer.hidden = false; scrim.hidden = false;
   cText.focus(); autosize(cText); placeFloating();
@@ -673,6 +696,9 @@ function paintComposer() {
     out.push(b);
   }
   out.push(el('span', 'csep'));
+  const d = el('input', 'cdate'); d.type = 'date'; d.value = comp.date; d.setAttribute('aria-label', '日付');
+  d.onchange = () => { comp.date = d.value; };
+  out.push(d, el('span', 'csep'));
   for (const [c, name] of Object.entries(COLORS)) {
     const b = el('button', 'cdot' + (c === comp.color ? ' on' : '')); b.style.background = swatch(c); b.setAttribute('aria-label', '色: ' + name);
     b.onclick = () => { comp.color = c; paintComposer(); cText.focus(); };
@@ -687,7 +713,7 @@ function addFromComposer() {
   const l = curList();
   // added to the top: keep the typed order by placing the last line first
   for (const text of S.addTop ? [...lines].reverse() : lines)
-    S.items.push({ id: uid(), list: l.id, sec: comp.sec, text, done: false, doneAt: 0, trash: false, color: comp.color, memo: '', order: nextOrder(comp.sec), prio: '', doing: false });
+    S.items.push({ id: uid(), list: l.id, sec: comp.sec, text, done: false, doneAt: 0, trash: false, color: comp.color, memo: '', order: nextOrder(comp.sec), prio: '', doing: false, date: comp.date });
   S.lastSec[l.id] = comp.sec; delete S.collapsed[comp.sec];
   cText.value = ''; autosize(cText); $('cSend').disabled = true;
   commit();
@@ -860,7 +886,7 @@ const CLIENT = uid();
 const sync = { ref: null, ready: false, writing: false, queued: false, lastSent: null, pending: null, pendingBase: null, timer: 0, state: 'off', text: 'この端末のみ' };
 const contentOf = s => JSON.stringify({
   lists: s.lists.map(({ id, name, sections }) => ({ id, name, sections: sections.map(({ id, name }) => ({ id, name })) })),
-  items: s.items.map(({ id, list, sec, text, done, doneAt, trash, color, memo, order, prio, doing }) => ({ id, list, sec, text, done, doneAt, trash, color, memo, order, prio, doing }))
+  items: s.items.map(({ id, list, sec, text, done, doneAt, trash, color, memo, order, prio, doing, date }) => ({ id, list, sec, text, done, doneAt, trash, color, memo, order, prio, doing, date }))
 });
 function setSync(state, text) { sync.state = state; sync.text = text; paintSync(); }
 function paintSync() {
