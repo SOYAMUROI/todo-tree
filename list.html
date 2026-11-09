@@ -72,6 +72,7 @@ main.slide-l{animation:slidel .18s ease-out} main.slide-r{animation:slider .18s 
 .item::after{content:"";position:absolute;left:62px;right:0;bottom:0;border-bottom:1px solid var(--line)}
 /* the date column, right of the check circle; kept even when empty so the tasks line up */
 .dcol{flex:none;width:68px;margin-right:-4px;font-size:13px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dcol small{display:block;font-size:11px;font-weight:500}
 .dcol.today{color:var(--warn);font-weight:700}
 .dcol.late{color:#f08c2e}
 .item.checked .dcol{opacity:.5}
@@ -94,6 +95,7 @@ main.slide-l{animation:slidel .18s ease-out} main.slide-r{animation:slider .18s 
 .tag.high{background:#e5484d} .tag.mid{background:#f08c2e} .tag.low{background:#8b9198}
 .tag.doing{background:none;color:var(--accent);border:1px solid var(--accent);padding:3px 6px}
 .item.checked .tags{opacity:.45}
+.dates2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .seg button{flex:1;border:0;background:var(--bg);padding:10px 0;font-size:15px}
 .seg button+button{border-left:1px solid var(--line)}
@@ -153,30 +155,55 @@ body.cal-full .calpane{display:flex;z-index:30;left:0;border-left:0}
 body:not(.cal-full) .calhead .x{display:none}
 .calwd{display:grid;grid-template-columns:repeat(7,1fr);font-size:12px;color:var(--muted);text-align:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .calwd .sat,.cday .n.sat{color:#3b82f6} .calwd .sun,.cday .n.sun{color:var(--warn)}
-.calgrid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);overflow:auto}
-.cday{min-width:0;min-height:88px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:4px 3px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.calgrid{flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+/* a week: the day cells behind, the tasks laid in lanes on top so a stretch of days is one bar */
+.cweek{--lane:20px;position:relative;flex:1 0 auto;min-height:calc(30px + var(--lane) * 5);border-bottom:1px solid var(--line)}
+.cwbg{position:absolute;inset:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.cwfg{position:absolute;left:0;right:0;top:28px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:var(--lane);row-gap:1px;pointer-events:none}
+.cday{min-width:0;border-right:1px solid var(--line);padding:3px 3px 0;cursor:pointer}
 .cday:nth-child(7n){border-right:0}
 .cday.out{background:color-mix(in srgb,var(--line) 35%,transparent)}
-.cday.out .n{opacity:.45}
-.cday .n{align-self:center;min-width:24px;height:24px;line-height:24px;border-radius:12px;text-align:center;font-size:12.5px;font-weight:600}
-.cday.today .n{background:var(--warn);color:#fff}
+.cday.out .chd{opacity:.45}
 .cday:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
-.ev{--ec:var(--accent);display:flex;align-items:center;gap:4px;font-size:11.5px;line-height:1.35;padding:1px 3px;border-radius:4px;white-space:nowrap;overflow:hidden}
+.cday.sel{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+.chd{display:flex;align-items:center;gap:3px;min-width:0;height:22px}
+.chd .n{flex:none;min-width:22px;height:22px;line-height:22px;border-radius:11px;text-align:center;font-size:12.5px;font-weight:600}
+.cday .n.sat{color:#3b82f6} .cday .n.sun{color:var(--warn)}
+.chd .hol{font-size:10.5px;color:var(--warn);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cday.today .n{background:var(--warn);color:#fff}
+.calwd .sat{color:#3b82f6} .calwd .sun{color:var(--warn)}
+.ev{--ec:var(--accent);pointer-events:auto;display:flex;align-items:center;gap:4px;min-width:0;margin:0 2px;font-size:11.5px;line-height:1.3;padding:0 4px;border-radius:4px;white-space:nowrap;overflow:hidden;cursor:pointer}
 .ev::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--ec)}
 .ev span{overflow:hidden;text-overflow:ellipsis}
 .ev:hover{background:color-mix(in srgb,var(--ec) 14%,transparent)}
-.ev.high{--ec:#e5484d} .ev.mid{--ec:#f08c2e} .ev.low{--ec:#8b9198}
-.ev.done{color:var(--muted);text-decoration:line-through}
-.ev.tree{--ec:#7c5cff}
-.ev.more{color:var(--muted);padding-left:13px}
+/* several days: a filled bar; one cut by the week's edge runs on into the next row */
+.ev.bar{background:var(--ec);color:#fff}
+.ev.bar::before{display:none}
+.ev.bar:hover{filter:brightness(1.08)}
+.ev.cont-l{margin-left:0;border-top-left-radius:0;border-bottom-left-radius:0}
+.ev.cont-r{margin-right:0;border-top-right-radius:0;border-bottom-right-radius:0}
+.ev.done{opacity:.55;text-decoration:line-through}
+.ev .bang{color:#e5484d;font-weight:800}
+.ev.bar .bang{color:#fff}
+.ev.tree{cursor:default}
+.ev.more{color:var(--muted);padding-left:6px}
 .ev.more::before{display:none}
-/* phones: narrow days, so names wrap to two lines and lose the dot */
-body.cal-full .ev{white-space:normal;padding:1px 1px 1px 3px;border-left:3px solid var(--ec);border-radius:2px;font-size:11px}
+.ev.moving{opacity:.35}
+.calfilter{display:flex;gap:8px;overflow-x:auto;padding:8px 14px;border-bottom:1px solid var(--line);scrollbar-width:none}
+.calfilter::-webkit-scrollbar{display:none}
+.cf{flex:none;display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--bg);border-radius:16px;padding:5px 12px;font-size:13px;white-space:nowrap;color:var(--muted)}
+.cf i{width:10px;height:10px;border-radius:50%;background:var(--ec);opacity:.35}
+.cf.on{color:var(--text);border-color:var(--ec);background:color-mix(in srgb,var(--ec) 10%,var(--bg))}
+.cf.on i{opacity:1}
+/* phones: narrow days, so names wrap and lose the dot */
+body.cal-full .cweek{--lane:26px;min-height:calc(26px + var(--lane) * 4)}
+body.cal-full .ev{white-space:normal;align-items:flex-start;padding:1px 2px 1px 3px;margin:0 1px;font-size:10px;line-height:1.2}
+body.cal-full .ev:not(.bar){border-left:3px solid var(--ec);border-radius:2px}
 body.cal-full .ev::before{display:none}
 body.cal-full .ev span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-all}
-body.cal-full .ev.more{border-left:0;padding-left:3px}
+body.cal-full .chd .hol{display:none}
 .callegend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);padding:8px 14px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
-.callegend .ev{display:inline-flex;padding:0}
+.callegend .ev{display:inline-flex;padding:0;pointer-events:none}
 .col2 .tabs{position:sticky;top:0;z-index:2;background:var(--bg);padding-top:calc(16px + env(safe-area-inset-top))}
 .colmain{padding:0 0 140px 18px;max-width:760px}
 
@@ -242,6 +269,7 @@ textarea.in{resize:none;overflow:hidden;line-height:1.45}
 .cchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .cdot{flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);padding:0}
 .cdot.on{outline:2px solid var(--accent);outline-offset:1px}
+.csep-t{flex:none;color:var(--muted);font-size:13px}
 .csep{flex:none;width:1px;height:20px;background:var(--line);margin:0 2px}
 </style>
 </head>
@@ -263,9 +291,10 @@ textarea.in{resize:none;overflow:hidden;line-height:1.45}
 <div class="col2" id="col2"><nav class="tabs" id="tabs2"></nav><div class="colmain" id="main2"></div></div>
 <section class="calpane" id="calPane" aria-label="予定">
   <div class="calhead"><button class="nav" id="calPrev" aria-label="前の月">‹</button><h2 id="calTitle"></h2><button class="nav" id="calNext" aria-label="次の月">›</button><button class="b" id="calToday">今日</button><button class="x" id="calClose" aria-label="閉じる">×</button></div>
+  <div class="calfilter" id="calFilter"></div>
   <div class="calwd"><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="sat">土</span><span class="sun">日</span></div>
   <div class="calgrid" id="calGrid"></div>
-  <div class="callegend"><span>日付を押すとその日にタスクを追加</span><span class="ev"><span>TODOリスト</span></span><span class="ev tree"><span>TODO Tree の期限</span></span></div>
+  <div class="callegend"><span>日付を押して追加・なぞると期間で追加</span><span>タスクをドラッグで日付を移動</span></div>
 </section>
 <div class="treepane" id="treePane"><iframe id="treeFrame" title="TODO Tree"></iframe></div>
 <div class="divider" id="divider" title="ドラッグで幅を変更"></div>
@@ -314,6 +343,13 @@ function seed() {
   add(task, 1, '21に連絡');
   return normalize({ lists: [priv, task, prio], items, cur: task.id });
 }
+// date is the day a task starts (or its only day); end is set only when it runs on to a later day
+function dateRange(date, end) {
+  const D = /^\d{4}-\d{2}-\d{2}$/;
+  date = D.test(date) ? date : ''; end = D.test(end) ? end : '';
+  if (!date) [date, end] = [end, ''];
+  return { date, end: end > date ? end : '' };
+}
 function normalize(s) {
   const lists = (s.lists || []).filter(l => l && l.id != null).map(l => ({
     id: String(l.id), name: String(l.name ?? ''),
@@ -328,10 +364,10 @@ function normalize(s) {
     return { id: String(i.id), list, sec: listOf[i.sec] === l ? String(i.sec) : l.sections[0].id, text: String(i.text ?? ''),
       // before the bin button existed, a checked task went straight into the bin
       done: !!i.done, doneAt: +i.doneAt || 0, trash: 'trash' in i ? !!i.trash : !!i.done, color: i.color in COLORS ? i.color : '', memo: String(i.memo || ''), order: +i.order || 0,
-      prio: i.prio in PRIO ? i.prio : '', doing: !!i.doing, date: /^\d{4}-\d{2}-\d{2}$/.test(i.date) ? i.date : '' };
+      prio: i.prio in PRIO ? i.prio : '', doing: !!i.doing, ...dateRange(i.date, i.end) };
   });
   return { lists, items, cur: lists.some(l => l.id === s.cur) ? s.cur : lists[0].id,
-    collapsed: s.collapsed || {}, lastSec: s.lastSec || {}, addTop: !!s.addTop,
+    collapsed: s.collapsed || {}, lastSec: s.lastSec || {}, addTop: !!s.addTop, calHide: s.calHide || {},
     splitW: +s.splitW || 460, cur2: s.cur2,
     // beside the list: TODO Tree and/or a second list (earlier versions showed one or the other)
     right: 'right' in s ? (['tree', 'cal'].includes(s.right) ? s.right : '')
@@ -407,8 +443,9 @@ function dateText(s) {
   return `${m}/${d}(${WD[new Date(y, m - 1, d).getDay()]})`;
 }
 function dateCell(it) {
-  const today = localDay(), c = el('div', 'dcol', dateText(it.date));
-  if (it.date && !it.done && it.date <= today) c.classList.add(it.date === today ? 'today' : 'late');
+  const today = localDay(), c = el('div', 'dcol', dateText(it.date)), last = it.end || it.date;
+  if (it.end) c.append(el('small', '', '〜' + dateText(it.end)));
+  if (it.date && !it.done && it.date <= today) c.classList.add(last >= today ? 'today' : 'late');
   return c;
 }
 function row(it, where) {
@@ -560,8 +597,14 @@ function editItem(id) {
     box.append(el('label', '', '優先度'), seg(Object.entries(PRIO), it.prio, v => { it.prio = v; touched(); }));
     box.append(el('label', '', '状態'), seg([[false, '未対応'], [true, '対応中']], it.doing, v => { it.doing = v; touched(); }));
     box.append(el('label', '', '色'), swatches(it.color, c => { it.color = c; touched(); }));
-    const date = field(box, '日付', el('input', 'in')); date.type = 'date'; date.value = it.date;
-    date.onchange = () => { it.date = date.value; touched(); };
+    const dates = el('div', 'dates2'), date = el('input', 'in'), end = el('input', 'in');
+    date.type = end.type = 'date'; date.value = it.date; end.value = it.end;
+    const setRange = (a, b) => { Object.assign(it, dateRange(a, b)); date.value = it.date; end.value = it.end; touched(); };
+    date.onchange = () => setRange(date.value, it.end);
+    end.onchange = () => setRange(it.date || end.value, end.value);
+    const lab = (t, i) => { const w = el('div'); w.append(el('label', '', t), i); return w; };
+    dates.append(lab('開始日', date), lab('終了日（1日だけなら空）', end));
+    box.append(dates);
     const memo = field(box, 'メモ', el('textarea', 'in')); memo.value = it.memo; memo.rows = 2;
     memo.oninput = () => { it.memo = memo.value; autosize(memo); touched(); };
     const acts = el('div', 'acts'), del = el('button', 'b warn', '削除'), save = el('button', 'b pri', '保存');
@@ -721,12 +764,12 @@ function openDrawer() {
 function closeDrawer() { if (drawer.hidden) return; drawer.hidden = true; scrim.hidden = true; }
 
 /* ---------- composer (＋) ---------- */
-const comp = { sec: null, color: '', date: '' };
-function openComposer(date = '') {
+const comp = { sec: null, color: '', date: '', end: '' };
+function openComposer(date = '', end = '') {
   closeAll();
   const l = curList();
   comp.sec = l.sections.some(x => x.id === S.lastSec[l.id]) ? S.lastSec[l.id] : l.sections[0].id;
-  comp.date = date;
+  Object.assign(comp, dateRange(date, end));
   paintComposer();
   composer.hidden = false; scrim.hidden = false;
   cText.focus(); autosize(cText); placeFloating();
@@ -740,9 +783,13 @@ function paintComposer() {
     out.push(b);
   }
   out.push(el('span', 'csep'));
-  const d = el('input', 'cdate'); d.type = 'date'; d.value = comp.date; d.setAttribute('aria-label', '日付');
-  d.onchange = () => { comp.date = d.value; };
-  out.push(d, el('span', 'csep'));
+  const d = el('input', 'cdate'), e = el('input', 'cdate');
+  d.type = e.type = 'date'; d.value = comp.date; e.value = comp.end;
+  d.setAttribute('aria-label', '開始日'); e.setAttribute('aria-label', '終了日');
+  const setRange = (a, b) => { Object.assign(comp, dateRange(a, b)); d.value = comp.date; e.value = comp.end; };
+  d.onchange = () => setRange(d.value, comp.end);
+  e.onchange = () => setRange(comp.date || e.value, e.value);
+  out.push(d, el('span', 'csep-t', '〜'), e, el('span', 'csep'));
   for (const [c, name] of Object.entries(COLORS)) {
     const b = el('button', 'cdot' + (c === comp.color ? ' on' : '')); b.style.background = swatch(c); b.setAttribute('aria-label', '色: ' + name);
     b.onclick = () => { comp.color = c; paintComposer(); cText.focus(); };
@@ -757,7 +804,7 @@ function addFromComposer() {
   const l = curList();
   // added to the top: keep the typed order by placing the last line first
   for (const text of S.addTop ? [...lines].reverse() : lines)
-    S.items.push({ id: uid(), list: l.id, sec: comp.sec, text, done: false, doneAt: 0, trash: false, color: comp.color, memo: '', order: nextOrder(comp.sec), prio: '', doing: false, date: comp.date });
+    S.items.push({ id: uid(), list: l.id, sec: comp.sec, text, done: false, doneAt: 0, trash: false, color: comp.color, memo: '', order: nextOrder(comp.sec), prio: '', doing: false, date: comp.date, end: comp.end });
   S.lastSec[l.id] = comp.sec; delete S.collapsed[comp.sec];
   cText.value = ''; autosize(cText); $('cSend').disabled = true;
   commit();
@@ -869,7 +916,7 @@ const onPress = e => {
 mainEl.addEventListener('pointerdown', onPress);
 $('main2').addEventListener('pointerdown', onPress);
 $('main2').addEventListener('contextmenu', e => { if (e.target.closest('.item')) e.preventDefault(); });
-addEventListener('touchmove', e => { if (drag) e.preventDefault(); }, { passive: false });
+addEventListener('touchmove', e => { if (drag || calSel || calMove) e.preventDefault(); }, { passive: false });
 mainEl.addEventListener('contextmenu', e => { if (e.target.closest('.item')) e.preventDefault(); });
 let swipe = null;
 mainEl.addEventListener('touchstart', e => { const t = e.touches[0]; swipe = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null; }, { passive: true });
@@ -919,64 +966,195 @@ $('bCols').onclick = () => { S.showCols = !S.showCols; saveLocal(); applySplit()
 /* ---------- 予定 (month calendar) ---------- */
 const calShown = () => document.body.classList.contains('pane-cal') || document.body.classList.contains('cal-full');
 let calMonth = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })();
-// TODO Tree keeps its board in this browser too: its unfinished tasks show on their deadline
-function treeDeadlines() {
+// TODO Tree keeps its board in this browser too: its unfinished tasks show across their dates
+function treeTasks() {
   try {
     const t = JSON.parse(localStorage.getItem('todo-tree-v1'));
-    return (t && t.nodes || []).filter(n => n.status !== 'done' && (n.end || n.start)).map(n => ({ text: n.text || '（無題）', date: n.end || n.start }));
+    return (t && t.nodes || []).filter(n => n.status !== 'done' && (n.end || n.start))
+      .map(n => ({ text: n.text || '（無題）', ...dateRange(n.start || n.end, n.end) }));
   } catch (e) { return []; }
 }
 const prioRank = e => ({ high: 0, mid: 1, low: 2 })[e.it && e.it.prio] ?? 3;
+// each list has its own colour on the calendar, so lists shown together can be told apart
+const LIST_COLORS = ['#4fb3a6', '#3b82f6', '#e5484d', '#f08c2e', '#ec4899', '#0ea5e9', '#a16207', '#16a34a'];
+const TREE_COLOR = '#7c5cff';
+const listColor = id => LIST_COLORS[Math.max(0, S.lists.findIndex(l => l.id === id)) % LIST_COLORS.length];
+const dateOf = key => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (key, n) => { const d = dateOf(key); d.setDate(d.getDate() + n); return localDay(d); };
+const daysBetween = (a, b) => Math.round((dateOf(b) - dateOf(a)) / 864e5);
+
+// Japanese public holidays, by the rules in force since 2020 (equinoxes by the usual formula, valid to 2099)
+const holidayCache = {};
+function holidays(y) {
+  if (holidayCache[y]) return holidayCache[y];
+  const h = {}, add = (m, d, name) => { h[localDay(new Date(y, m - 1, d))] = name; };
+  const monday = (m, n) => 1 + (8 - new Date(y, m - 1, 1).getDay()) % 7 + (n - 1) * 7;
+  const eq = base => Math.floor(base + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+  add(1, 1, '元日'); add(1, monday(1, 2), '成人の日'); add(2, 11, '建国記念の日'); add(2, 23, '天皇誕生日');
+  add(3, eq(20.8431), '春分の日'); add(4, 29, '昭和の日'); add(5, 3, '憲法記念日'); add(5, 4, 'みどりの日'); add(5, 5, 'こどもの日');
+  add(7, monday(7, 3), '海の日'); add(8, 11, '山の日'); add(9, monday(9, 3), '敬老の日'); add(9, eq(23.2488), '秋分の日');
+  add(10, monday(10, 2), 'スポーツの日'); add(11, 3, '文化の日'); add(11, 23, '勤労感謝の日');
+  // a weekday caught between two holidays is a holiday too
+  for (const k of Object.keys(h)) { const mid = addDays(k, 1); if (h[addDays(k, 2)] && !h[mid] && dateOf(mid).getDay() !== 0) h[mid] = '国民の休日'; }
+  // a holiday on a Sunday moves to the next day that is not one
+  for (const k of Object.keys(h).sort()) if (dateOf(k).getDay() === 0) { let d = addDays(k, 1); while (h[d]) d = addDays(d, 1); h[d] = '振替休日'; }
+  return holidayCache[y] = h;
+}
+const holidayOf = key => holidays(+key.slice(0, 4))[key] || '';
+
+function calEvents() {
+  const out = [];
+  for (const it of S.items) if (it.date && !it.trash && !S.calHide[it.list])
+    out.push({ s: it.date, e: it.end || it.date, text: it.text, it, color: listColor(it.list) });
+  if (!S.calHide.tree) for (const t of treeTasks()) if (t.date) out.push({ s: t.date, e: t.end || t.date, text: t.text, tree: true, color: TREE_COLOR });
+  // earlier first, longer first, then unfinished and higher priority
+  return out.sort((a, b) => a.s.localeCompare(b.s) || b.e.localeCompare(a.e)
+    || (a.it ? +a.it.done : 0) - (b.it ? +b.it.done : 0) || prioRank(a) - prioRank(b));
+}
+function renderCalFilter() {
+  const chip = (name, color, on, toggle) => {
+    const b = el('button', 'cf' + (on ? ' on' : '')); b.style.setProperty('--ec', color);
+    b.append(el('i'), document.createTextNode(name)); b.onclick = toggle;
+    return b;
+  };
+  const flip = id => () => { if (S.calHide[id]) delete S.calHide[id]; else S.calHide[id] = true; saveLocal(); renderCal(); };
+  const all = el('button', 'cf' + (Object.keys(S.calHide).length ? '' : ' on'), 'すべて'); all.style.setProperty('--ec', 'var(--accent)');
+  all.onclick = () => { S.calHide = {}; saveLocal(); renderCal(); };
+  $('calFilter').replaceChildren(all, ...S.lists.map(l => chip(l.name || '（無題）', listColor(l.id), !S.calHide[l.id], flip(l.id))),
+    chip('TODO Tree', TREE_COLOR, !S.calHide.tree, flip('tree')));
+}
+let calEvs = [];
 function renderCal() {
   const y = calMonth.getFullYear(), m = calMonth.getMonth();
   $('calTitle').textContent = `${y}年${m + 1}月`;
-  const first = new Date(y, m, 1), start = new Date(y, m, 1 - (first.getDay() + 6) % 7); // weeks start on Monday
-  const last = new Date(y, m + 1, 0), weeks = Math.ceil(((first.getDay() + 6) % 7 + last.getDate()) / 7);
-  const byDay = {};
-  for (const it of S.items) if (it.date && !it.trash) (byDay[it.date] = byDay[it.date] || []).push({ it });
-  for (const t of treeDeadlines()) (byDay[t.date] = byDay[t.date] || []).push({ tree: t });
-  const listName = id => (S.lists.find(l => l.id === id) || {}).name || '';
-  const today = localDay(), cells = [];
-  for (let i = 0; i < weeks * 7; i++) {
-    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), key = localDay(d), wd = d.getDay();
-    const c = el('div', 'cday' + (d.getMonth() !== m ? ' out' : '') + (key === today ? ' today' : ''));
-    c.append(el('span', 'n' + (wd === 6 ? ' sat' : wd === 0 ? ' sun' : ''), d.getDate()));
-    // unfinished first, then by priority
-    const evs = (byDay[key] || []).sort((a, b) => (a.it ? +a.it.done : 0) - (b.it ? +b.it.done : 0)
-      || prioRank(a) - prioRank(b));
-    const max = 4;
-    for (const e of evs.slice(0, evs.length > max ? max - 1 : max)) {
-      const v = el('div', 'ev');
-      if (e.it) {
-        if (e.it.prio) v.classList.add(e.it.prio);
-        if (e.it.done) v.classList.add('done');
-        v.title = `${listName(e.it.list)}：${e.it.text}`;
-        v.onclick = ev => { ev.stopPropagation(); editItem(e.it.id); };
-        v.append(el('span', '', e.it.text));
-      } else {
-        v.classList.add('tree'); v.title = `TODO Tree：${e.tree.text}`;
-        v.append(el('span', '', e.tree.text));
-      }
-      c.append(v);
+  renderCalFilter();
+  const first = new Date(y, m, 1), start = localDay(new Date(y, m, 1 - (first.getDay() + 6) % 7)); // weeks start on Monday
+  const weeks = Math.ceil(((first.getDay() + 6) % 7 + new Date(y, m + 1, 0).getDate()) / 7);
+  // lanes of tasks a week shows before counting the rest as 他N件 (phones have less room)
+  const today = localDay(), MAX = document.body.classList.contains('cal-full') ? 3 : 4, listName = id => (S.lists.find(l => l.id === id) || {}).name || '';
+  calEvs = calEvents();
+  const rows = [];
+  for (let w = 0; w < weeks; w++) {
+    const days = [...Array(7)].map((_, i) => addDays(start, w * 7 + i));
+    const wk = el('div', 'cweek'), bg = el('div', 'cwbg'), fg = el('div', 'cwfg');
+    for (const key of days) {
+      const d = dateOf(key), wd = d.getDay(), hol = holidayOf(key);
+      const c = el('div', 'cday' + (d.getMonth() !== m ? ' out' : '') + (key === today ? ' today' : ''));
+      c.dataset.day = key;
+      const hd = el('div', 'chd');
+      hd.append(el('span', 'n' + (hol || wd === 0 ? ' sun' : wd === 6 ? ' sat' : ''), d.getDate()));
+      if (hol) { hd.append(el('span', 'hol', hol)); c.title = hol; }
+      c.append(hd); bg.append(c);
     }
-    if (evs.length > max) {
-      const more = el('div', 'ev more', `他${evs.length - max + 1}件`);
-      more.onclick = ev => { ev.stopPropagation(); dayList(key, evs); };
-      c.append(more);
+    // lay the week's tasks into lanes; what does not fit is counted per day
+    const lanes = [], hidden = Array(7).fill(0);
+    for (const e of calEvs) {
+      if (e.e < days[0] || e.s > days[6]) continue;
+      const a = e.s < days[0] ? 0 : days.indexOf(e.s), b = e.e > days[6] ? 6 : days.indexOf(e.e);
+      let lane = 0;
+      while (lanes[lane] && lanes[lane].slice(a, b + 1).some(Boolean)) lane++;
+      if (lane >= MAX) { for (let i = a; i <= b; i++) hidden[i]++; continue; }
+      (lanes[lane] = lanes[lane] || Array(7).fill(false)).fill(true, a, b + 1);
+      const v = el('div', 'ev' + (e.s !== e.e ? ' bar' : '') + (e.tree ? ' tree' : '') + (e.it && e.it.done ? ' done' : '')
+        + (e.s < days[0] ? ' cont-l' : '') + (e.e > days[6] ? ' cont-r' : ''));
+      v.style.setProperty('--ec', e.color);
+      v.style.gridColumn = `${a + 1} / ${b + 2}`; v.style.gridRow = lane + 1;
+      if (e.it && e.it.prio === 'high') v.append(el('b', 'bang', '!'));
+      v.append(el('span', '', e.text));
+      v.title = (e.it ? listName(e.it.list) : 'TODO Tree') + '：' + e.text + (e.s !== e.e ? `（${dateText(e.s)}〜${dateText(e.e)}）` : '');
+      if (e.it) v.dataset.id = e.it.id;
+      fg.append(v);
     }
-    c.onclick = () => openComposer(key);
-    cells.push(c);
+    hidden.forEach((n, i) => {
+      if (!n) return;
+      const more = el('div', 'ev more', `他${n}件`);
+      more.style.gridColumn = i + 1; more.style.gridRow = MAX + 1; more.dataset.more = days[i];
+      fg.append(more);
+    });
+    wk.append(bg, fg); rows.push(wk);
   }
-  $('calGrid').replaceChildren(...cells);
+  $('calGrid').replaceChildren(...rows);
 }
-function dayList(key, evs) {
-  openSheet(dateText(key), box => {
-    for (const e of evs) {
+function dayList(key) {
+  openSheet(dateText(key) + (holidayOf(key) ? ' ' + holidayOf(key) : ''), box => {
+    for (const e of calEvs.filter(e => e.s <= key && e.e >= key)) {
       if (e.it) box.append(row(e.it));
-      else { const r = el('div', 'item'); r.append(el('span', 'ev tree'), el('div', 'txt', 'TODO Tree：' + e.tree.text)); box.append(r); }
+      else { const r = el('div', 'item'); r.append(el('div', 'txt', 'TODO Tree：' + e.text)); box.append(r); }
     }
   });
 }
+// the day under a point (tasks lie over the day cells, so this goes by position)
+function dayAt(x, y) {
+  for (const c of $('calGrid').querySelectorAll('.cday')) {
+    const b = c.getBoundingClientRect();
+    if (x >= b.left && x < b.right && y >= b.top && y < b.bottom) return c.dataset.day;
+  }
+  return null;
+}
+function markDays(a, b) {
+  const [lo, hi] = a && b ? [a, b].sort() : [];
+  for (const c of $('calGrid').querySelectorAll('.cday')) c.classList.toggle('sel', !!lo && c.dataset.day >= lo && c.dataset.day <= hi);
+}
+// Press a day to add a task on it; sweep across days (on a phone: hold, then sweep) to add one for that stretch.
+// Drag a task to another day to move it, keeping its length. A tap on a task opens it.
+let calSel = null, calMove = null;
+$('calGrid').addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  const more = e.target.closest('.ev.more');
+  if (more) return dayList(more.dataset.more);
+  const ev = e.target.closest('.ev'), day = dayAt(e.clientX, e.clientY);
+  if (!day || (ev && !ev.dataset.id)) return; // TODO Tree's tasks are changed in TODO Tree
+  const pid = e.pointerId, sx = e.clientX, sy = e.clientY, mouse = e.pointerType === 'mouse';
+  const it = ev && findItem(ev.dataset.id);
+  const begin = () => {
+    if (it) {
+      calMove = { it, from: day, to: day, len: daysBetween(it.date, it.end || it.date) };
+      $('calGrid').querySelectorAll(`.ev[data-id="${it.id}"]`).forEach(x => x.classList.add('moving'));
+      markDays(it.date, it.end || it.date);
+    } else { calSel = { a: day, b: day }; markDays(day, day); }
+    if (!mouse && navigator.vibrate) navigator.vibrate(10);
+  };
+  // a mouse starts at once (a task only once it moves); a finger holds first, so a swipe still scrolls
+  let timer = 0;
+  if (!mouse) timer = setTimeout(() => { timer = 0; begin(); }, 350);
+  else if (!it) begin();
+  const move = m => {
+    if (m.pointerId !== pid) return;
+    const far = Math.hypot(m.clientX - sx, m.clientY - sy) > 6;
+    if (!calSel && !calMove) {
+      if (mouse && it && far) begin();
+      else if (timer && far) return stop();
+      else return;
+    }
+    const d = dayAt(m.clientX, m.clientY); if (!d) return;
+    if (calSel && d !== calSel.b) { calSel.b = d; markDays(calSel.a, d); }
+    if (calMove && d !== calMove.to) {
+      calMove.to = d;
+      const s = addDays(calMove.it.date, daysBetween(calMove.from, d));
+      markDays(s, addDays(s, calMove.len));
+    }
+  };
+  const up = u => {
+    if (u.pointerId !== pid) return;
+    const tap = !calSel && !calMove, sel = calSel, mv = calMove;
+    stop();
+    if (mv) {
+      const shift = daysBetween(mv.from, mv.to);
+      if (shift) {
+        mv.it.date = addDays(mv.it.date, shift);
+        if (mv.it.end) mv.it.end = addDays(mv.it.end, shift);
+        commit(); toast(`${dateText(mv.it.date)}${mv.it.end ? '〜' + dateText(mv.it.end) : ''} に移動しました`);
+      } else if (mouse) editItem(mv.it.id);
+    } else if (sel) { const [a, b] = [sel.a, sel.b].sort(); openComposer(a, b); }
+    else if (tap) { if (it) editItem(it.id); else openComposer(day); }
+  };
+  const stop = () => {
+    clearTimeout(timer); timer = 0; calSel = calMove = null; markDays();
+    $('calGrid').querySelectorAll('.ev.moving').forEach(x => x.classList.remove('moving'));
+    removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', stop);
+  };
+  addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', stop);
+});
 $('calPrev').onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCal(); };
 $('calNext').onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCal(); };
 $('calToday').onclick = () => { const d = new Date(); calMonth = new Date(d.getFullYear(), d.getMonth(), 1); renderCal(); };
@@ -1004,7 +1182,7 @@ const CLIENT = uid();
 const sync = { ref: null, ready: false, writing: false, queued: false, lastSent: null, pending: null, pendingBase: null, timer: 0, state: 'off', text: 'この端末のみ' };
 const contentOf = s => JSON.stringify({
   lists: s.lists.map(({ id, name, sections }) => ({ id, name, sections: sections.map(({ id, name }) => ({ id, name })) })),
-  items: s.items.map(({ id, list, sec, text, done, doneAt, trash, color, memo, order, prio, doing, date }) => ({ id, list, sec, text, done, doneAt, trash, color, memo, order, prio, doing, date }))
+  items: s.items.map(({ id, list, sec, text, done, doneAt, trash, color, memo, order, prio, doing, date, end }) => ({ id, list, sec, text, done, doneAt, trash, color, memo, order, prio, doing, date, end }))
 });
 function setSync(state, text) { sync.state = state; sync.text = text; paintSync(); }
 function paintSync() {
