@@ -152,12 +152,31 @@ body.cal-full .calpane{display:flex;z-index:30;left:0;border-left:0}
 .calhead .b{flex:none;min-width:0;padding:6px 12px;font-size:14px}
 .calhead .nav{flex:none;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--bg);font-size:16px;line-height:1}
 .calhead .x{margin-left:auto}
+.calview{flex:none;display:flex;border:1px solid var(--line);border-radius:17px;overflow:hidden;margin-left:4px}
+.calview button{border:0;background:var(--bg);padding:6px 13px;font-size:13px}
+.calview button.on{background:var(--accent);color:#fff}
+body:not(.cal-full) .calview{margin-left:auto}
+/* phones: a shorter title and tighter controls, so they fit on one line */
+body.cal-full .calhead{gap:5px;padding-left:10px;padding-right:6px}
+body.cal-full .calhead h2{font-size:15px;margin:0 1px}
+body.cal-full .calhead .nav{width:30px;height:30px}
+body.cal-full .calhead .b{padding:5px 8px;font-size:13px}
+body.cal-full .calview{margin-left:2px}
+body.cal-full .calview button{padding:5px 9px}
+body.cal-full .calhead .x{padding:2px 4px}
 body:not(.cal-full) .calhead .x{display:none}
 .calwd{display:grid;grid-template-columns:repeat(7,1fr);font-size:12px;color:var(--muted);text-align:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .calwd .sat,.cday .n.sat{color:#3b82f6} .calwd .sun,.cday .n.sun{color:var(--warn)}
 .calgrid{flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 /* a week: the day cells behind, the tasks laid in lanes on top so a stretch of days is one bar */
 .cweek{--lane:20px;position:relative;flex:1 0 auto;min-height:calc(30px + var(--lane) * 5);border-bottom:1px solid var(--line)}
+/* 週: one week fills the pane and shows every task */
+.cweek.full{--lane:24px;min-height:100%;padding-bottom:12px}
+.cweek.full .cwfg{position:relative;top:0;padding-top:30px}
+.cweek.full .ev{font-size:12.5px}
+body.cal-full .cweek.full{--lane:40px}
+body.cal-full .cweek.full .ev{font-size:11px;-webkit-line-clamp:3}
+body.cal-full .cweek.full .ev span{-webkit-line-clamp:3}
 .cwbg{position:absolute;inset:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
 .cwfg{position:absolute;left:0;right:0;top:28px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:var(--lane);row-gap:1px;pointer-events:none}
 .cday{min-width:0;border-right:1px solid var(--line);padding:3px 3px 0;cursor:pointer}
@@ -290,7 +309,7 @@ textarea.in{resize:none;overflow:hidden;line-height:1.45}
 <main id="main"></main>
 <div class="col2" id="col2"><nav class="tabs" id="tabs2"></nav><div class="colmain" id="main2"></div></div>
 <section class="calpane" id="calPane" aria-label="予定">
-  <div class="calhead"><button class="nav" id="calPrev" aria-label="前の月">‹</button><h2 id="calTitle"></h2><button class="nav" id="calNext" aria-label="次の月">›</button><button class="b" id="calToday">今日</button><button class="x" id="calClose" aria-label="閉じる">×</button></div>
+  <div class="calhead"><button class="nav" id="calPrev" aria-label="前の月">‹</button><h2 id="calTitle"></h2><button class="nav" id="calNext" aria-label="次の月">›</button><button class="b" id="calToday">今日</button><div class="calview" id="calView"><button data-v="month">月</button><button data-v="week">週</button></div><button class="x" id="calClose" aria-label="閉じる">×</button></div>
   <div class="calfilter" id="calFilter"></div>
   <div class="calwd"><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="sat">土</span><span class="sun">日</span></div>
   <div class="calgrid" id="calGrid"></div>
@@ -367,7 +386,7 @@ function normalize(s) {
       prio: i.prio in PRIO ? i.prio : '', doing: !!i.doing, ...dateRange(i.date, i.end) };
   });
   return { lists, items, cur: lists.some(l => l.id === s.cur) ? s.cur : lists[0].id,
-    collapsed: s.collapsed || {}, lastSec: s.lastSec || {}, addTop: !!s.addTop, calHide: s.calHide || {},
+    collapsed: s.collapsed || {}, lastSec: s.lastSec || {}, addTop: !!s.addTop, calHide: s.calHide || {}, calView: s.calView === 'week' ? 'week' : 'month',
     splitW: +s.splitW || 460, cur2: s.cur2,
     // beside the list: TODO Tree and/or a second list (earlier versions showed one or the other)
     right: 'right' in s ? (['tree', 'cal'].includes(s.right) ? s.right : '')
@@ -966,6 +985,9 @@ $('bCols').onclick = () => { S.showCols = !S.showCols; saveLocal(); applySplit()
 /* ---------- 予定 (month calendar) ---------- */
 const calShown = () => document.body.classList.contains('pane-cal') || document.body.classList.contains('cal-full');
 let calMonth = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })();
+// 週: the Monday of the week on screen
+const mondayOf = key => addDays(key, -((dateOf(key).getDay() + 6) % 7));
+let calWeek = null;
 // TODO Tree keeps its board in this browser too: its unfinished tasks show across their dates
 function treeTasks() {
   try {
@@ -1026,20 +1048,26 @@ function renderCalFilter() {
 let calEvs = [];
 function renderCal() {
   const y = calMonth.getFullYear(), m = calMonth.getMonth();
-  $('calTitle').textContent = `${y}年${m + 1}月`;
+  const week = S.calView === 'week';
+  if (week && !calWeek) calWeek = mondayOf(localDay());
+  $('calTitle').textContent = week ? (() => { const a = dateOf(calWeek), b = dateOf(addDays(calWeek, 6));
+    return document.body.classList.contains('cal-full') ? `${a.getMonth() + 1}/${a.getDate()}〜${b.getMonth() + 1}/${b.getDate()}`
+      : `${a.getFullYear()}年${a.getMonth() + 1}月${a.getDate()}日〜${b.getMonth() !== a.getMonth() ? b.getMonth() + 1 + '月' : ''}${b.getDate()}日`; })() : `${y}年${m + 1}月`;
+  for (const b of $('calView').children) b.classList.toggle('on', b.dataset.v === S.calView);
+  $('calPrev').setAttribute('aria-label', week ? '前の週' : '前の月'); $('calNext').setAttribute('aria-label', week ? '次の週' : '次の月');
   renderCalFilter();
-  const first = new Date(y, m, 1), start = localDay(new Date(y, m, 1 - (first.getDay() + 6) % 7)); // weeks start on Monday
-  const weeks = Math.ceil(((first.getDay() + 6) % 7 + new Date(y, m + 1, 0).getDate()) / 7);
+  const first = new Date(y, m, 1), start = week ? calWeek : localDay(new Date(y, m, 1 - (first.getDay() + 6) % 7)); // weeks start on Monday
+  const weeks = week ? 1 : Math.ceil(((first.getDay() + 6) % 7 + new Date(y, m + 1, 0).getDate()) / 7);
   // lanes of tasks a week shows before counting the rest as 他N件 (phones have less room)
-  const today = localDay(), MAX = document.body.classList.contains('cal-full') ? 3 : 4, listName = id => (S.lists.find(l => l.id === id) || {}).name || '';
+  const today = localDay(), MAX = week ? Infinity : document.body.classList.contains('cal-full') ? 3 : 4, listName = id => (S.lists.find(l => l.id === id) || {}).name || '';
   calEvs = calEvents();
   const rows = [];
   for (let w = 0; w < weeks; w++) {
     const days = [...Array(7)].map((_, i) => addDays(start, w * 7 + i));
-    const wk = el('div', 'cweek'), bg = el('div', 'cwbg'), fg = el('div', 'cwfg');
+    const wk = el('div', 'cweek' + (week ? ' full' : '')), bg = el('div', 'cwbg'), fg = el('div', 'cwfg');
     for (const key of days) {
       const d = dateOf(key), wd = d.getDay(), hol = holidayOf(key);
-      const c = el('div', 'cday' + (d.getMonth() !== m ? ' out' : '') + (key === today ? ' today' : ''));
+      const c = el('div', 'cday' + (!week && d.getMonth() !== m ? ' out' : '') + (key === today ? ' today' : ''));
       c.dataset.day = key;
       const hd = el('div', 'chd');
       hd.append(el('span', 'n' + (hol || wd === 0 ? ' sun' : wd === 6 ? ' sat' : ''), d.getDate()));
@@ -1155,9 +1183,21 @@ $('calGrid').addEventListener('pointerdown', e => {
   };
   addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', stop);
 });
-$('calPrev').onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCal(); };
-$('calNext').onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCal(); };
-$('calToday').onclick = () => { const d = new Date(); calMonth = new Date(d.getFullYear(), d.getMonth(), 1); renderCal(); };
+// ‹ › step a month or a week; the month follows the week so switching views stays near the same days
+function calStep(n) {
+  if (S.calView === 'week') { calWeek = addDays(calWeek, 7 * n); const d = dateOf(addDays(calWeek, 3)); calMonth = new Date(d.getFullYear(), d.getMonth(), 1); }
+  else { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + n, 1); calWeek = null; }
+  renderCal();
+}
+$('calPrev').onclick = () => calStep(-1);
+$('calNext').onclick = () => calStep(1);
+$('calToday').onclick = () => { const d = new Date(); calMonth = new Date(d.getFullYear(), d.getMonth(), 1); calWeek = mondayOf(localDay()); renderCal(); };
+$('calView').onclick = e => {
+  const v = e.target.dataset.v; if (!v || v === S.calView) return;
+  // into 週: today's week when this month is on screen, otherwise the month's first week
+  if (v === 'week') { const t = localDay(); calWeek = mondayOf(t.slice(0, 7) === localDay(calMonth).slice(0, 7) ? t : localDay(calMonth)); }
+  S.calView = v; saveLocal(); renderCal();
+};
 $('calClose').onclick = () => { S.right = ''; saveLocal(); applySplit(); };
 // a change made in TODO Tree (the pane on the right, or another tab) shows up here
 addEventListener('storage', e => { if (e.key === 'todo-tree-v1' && calShown()) renderCal(); });
