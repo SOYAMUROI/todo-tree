@@ -207,6 +207,35 @@ body.cal-full .cweek.full .ev span{-webkit-line-clamp:3}
 .ev.tree{cursor:default}
 .ev.more{color:var(--muted);padding-left:6px}
 .ev.more::before{display:none}
+/* 週: tasks without a time in a strip on top, timed ones on an hourly grid */
+.calgrid.weekmode{overflow:hidden}
+.calpane.weekmode .calwd{padding-left:var(--gut)}
+.calpane{--gut:46px;--hour:48px}
+body.cal-full .calpane{--gut:34px;--hour:44px}
+.wk-top{flex:none;display:flex;max-height:34%;overflow:auto;border-bottom:2px solid var(--line)}
+.wk-gut{flex:none;width:var(--gut);font-size:10.5px;color:var(--muted);text-align:right;padding:32px 6px 0 0}
+.wk-top .cweek{flex:1;min-height:calc(32px + var(--lane) * 1.5);border-bottom:0}
+.wk-top .cwfg{position:relative;top:0;padding:28px 0 4px}
+.wk-time{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+.wk-grid{display:grid;grid-template-columns:var(--gut) repeat(7,minmax(0,1fr));height:calc(var(--hour) * 24)}
+.wk-h{height:var(--hour);font-size:10.5px;color:var(--muted);text-align:right;padding-right:6px;line-height:1;transform:translateY(-5px)}
+.wk-h:first-child{visibility:hidden}
+.tcol{position:relative;border-left:1px solid var(--line);cursor:pointer;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(color-mix(in srgb,var(--line) 45%,transparent) 1px,transparent 1px);
+  background-size:100% var(--hour),100% var(--hour);background-position:0 0,0 calc(var(--hour) / 2)}
+.tcol.today{background-color:color-mix(in srgb,var(--warn) 4%,transparent)}
+.tev{--ec:var(--accent);position:absolute;z-index:1;overflow:hidden;padding:2px 4px;border-radius:5px;border:1px solid var(--bg);
+  background:var(--ec);color:#fff;font-size:11.5px;line-height:1.3;cursor:pointer}
+.tev small{display:block;font-size:10px;opacity:.9}
+.tev.done{opacity:.5;text-decoration:line-through}
+.tev.moving{opacity:.3}
+.tev .bang{font-weight:800}
+.tres{position:absolute;left:0;right:0;bottom:0;height:8px;cursor:ns-resize}
+.tsel{position:absolute;z-index:2;left:2px;right:2px;border:1.5px dashed var(--accent);border-radius:5px;pointer-events:none;
+  background:color-mix(in srgb,var(--accent) 22%,transparent);font-size:11px;font-weight:700;padding:2px 4px;color:var(--text)}
+.tnow{position:absolute;z-index:3;left:0;right:0;height:2px;background:var(--warn);pointer-events:none}
+.tnow::before{content:"";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--warn)}
+body.cal-full .tev{font-size:10px;padding:1px 2px}
 .ev.moving{opacity:.35}
 .calfilter{display:flex;gap:8px;overflow-x:auto;padding:8px 14px;border-bottom:1px solid var(--line);scrollbar-width:none}
 .calfilter::-webkit-scrollbar{display:none}
@@ -313,7 +342,7 @@ textarea.in{resize:none;overflow:hidden;line-height:1.45}
   <div class="calfilter" id="calFilter"></div>
   <div class="calwd"><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="sat">土</span><span class="sun">日</span></div>
   <div class="calgrid" id="calGrid"></div>
-  <div class="callegend"><span>日付を押して追加・なぞると期間で追加</span><span>タスクをドラッグで日付を移動</span></div>
+  <div class="callegend"><span>日付を押して追加・なぞると期間で追加</span><span>タスクをドラッグで移動</span><span>週：時間をなぞって追加・下端をドラッグで長さを変更</span></div>
 </section>
 <div class="treepane" id="treePane"><iframe id="treeFrame" title="TODO Tree"></iframe></div>
 <div class="divider" id="divider" title="ドラッグで幅を変更"></div>
@@ -362,6 +391,14 @@ function seed() {
   add(task, 1, '21に連絡');
   return normalize({ lists: [priv, task, prio], items, cur: task.id });
 }
+// st/et: start and end times, HH:MM in 30-minute steps (et may be 24:00); a start without a valid end lasts an hour
+const TIME = /^([01]\d|2[0-3]):[03]0$/;
+const toMin = t => +t.slice(0, 2) * 60 + +t.slice(3);
+const fromMin = n => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
+function timeRange(st, et) {
+  if (!TIME.test(st)) return { st: '', et: '' };
+  return { st, et: (TIME.test(et) || et === '24:00') && toMin(et) > toMin(st) ? et : fromMin(Math.min(1440, toMin(st) + 60)) };
+}
 // date is the day a task starts (or its only day); end is set only when it runs on to a later day
 function dateRange(date, end) {
   const D = /^\d{4}-\d{2}-\d{2}$/;
@@ -383,7 +420,7 @@ function normalize(s) {
     return { id: String(i.id), list, sec: listOf[i.sec] === l ? String(i.sec) : l.sections[0].id, text: String(i.text ?? ''),
       // before the bin button existed, a checked task went straight into the bin
       done: !!i.done, doneAt: +i.doneAt || 0, trash: 'trash' in i ? !!i.trash : !!i.done, color: i.color in COLORS ? i.color : '', memo: String(i.memo || ''), order: +i.order || 0,
-      prio: i.prio in PRIO ? i.prio : '', doing: !!i.doing, ...dateRange(i.date, i.end) };
+      prio: i.prio in PRIO ? i.prio : '', doing: !!i.doing, ...dateRange(i.date, i.end), ...timeRange(i.st, i.et) };
   });
   return { lists, items, cur: lists.some(l => l.id === s.cur) ? s.cur : lists[0].id,
     collapsed: s.collapsed || {}, lastSec: s.lastSec || {}, addTop: !!s.addTop, calHide: s.calHide || {}, calView: s.calView === 'week' ? 'week' : 'month',
@@ -464,8 +501,15 @@ function dateText(s) {
 function dateCell(it) {
   const today = localDay(), c = el('div', 'dcol', dateText(it.date)), last = it.end || it.date;
   if (it.end) c.append(el('small', '', '〜' + dateText(it.end)));
+  if (it.date && it.st) c.append(el('small', '', `${it.st}-${it.et}`));
   if (it.date && !it.done && it.date <= today) c.classList.add(last >= today ? 'today' : 'late');
   return c;
+}
+function timeSelect(value, isEnd, cls) {
+  const sel = el('select', cls); sel.append(new Option(isEnd ? '終了時刻' : '時刻なし', ''));
+  for (let n = isEnd ? 30 : 0; n <= (isEnd ? 1440 : 1410); n += 30) sel.append(new Option(fromMin(n), fromMin(n)));
+  sel.value = value || '';
+  return sel;
 }
 function row(it, where) {
   const r = el('div', 'item' + (it.color ? ' c-' + it.color : '') + (it.done ? ' checked' : ''));
@@ -623,7 +667,13 @@ function editItem(id) {
     end.onchange = () => setRange(it.date || end.value, end.value);
     const lab = (t, i) => { const w = el('div'); w.append(el('label', '', t), i); return w; };
     dates.append(lab('開始日', date), lab('終了日（1日だけなら空）', end));
-    box.append(dates);
+    const times = el('div', 'dates2'), st = timeSelect(it.st, false, 'in'), et = timeSelect(it.et, true, 'in');
+    const setTimes = (a, b) => { Object.assign(it, timeRange(a, b)); st.value = it.st; et.value = it.et; touched(); };
+    st.onchange = () => setTimes(st.value, it.et);
+    // an end picked first: the start goes an hour before it
+    et.onchange = () => setTimes(it.st || (et.value ? fromMin(Math.max(0, toMin(et.value) - 60)) : ''), et.value);
+    times.append(lab('開始時刻', st), lab('終了時刻', et));
+    box.append(dates, times);
     const memo = field(box, 'メモ', el('textarea', 'in')); memo.value = it.memo; memo.rows = 2;
     memo.oninput = () => { it.memo = memo.value; autosize(memo); touched(); };
     const acts = el('div', 'acts'), del = el('button', 'b warn', '削除'), save = el('button', 'b pri', '保存');
@@ -783,12 +833,12 @@ function openDrawer() {
 function closeDrawer() { if (drawer.hidden) return; drawer.hidden = true; scrim.hidden = true; }
 
 /* ---------- composer (＋) ---------- */
-const comp = { sec: null, color: '', date: '', end: '' };
-function openComposer(date = '', end = '') {
+const comp = { sec: null, color: '', date: '', end: '', st: '', et: '' };
+function openComposer(date = '', end = '', st = '', et = '') {
   closeAll();
   const l = curList();
   comp.sec = l.sections.some(x => x.id === S.lastSec[l.id]) ? S.lastSec[l.id] : l.sections[0].id;
-  Object.assign(comp, dateRange(date, end));
+  Object.assign(comp, dateRange(date, end), timeRange(st, et));
   paintComposer();
   composer.hidden = false; scrim.hidden = false;
   cText.focus(); autosize(cText); placeFloating();
@@ -808,7 +858,10 @@ function paintComposer() {
   const setRange = (a, b) => { Object.assign(comp, dateRange(a, b)); d.value = comp.date; e.value = comp.end; };
   d.onchange = () => setRange(d.value, comp.end);
   e.onchange = () => setRange(comp.date || e.value, e.value);
-  out.push(d, el('span', 'csep-t', '〜'), e, el('span', 'csep'));
+  const ts = timeSelect(comp.st, false, 'cdate'), te = timeSelect(comp.et, true, 'cdate');
+  ts.onchange = () => { Object.assign(comp, timeRange(ts.value, comp.et)); ts.value = comp.st; te.value = comp.et; };
+  te.onchange = () => { Object.assign(comp, timeRange(comp.st || (te.value ? fromMin(Math.max(0, toMin(te.value) - 60)) : ''), te.value)); ts.value = comp.st; te.value = comp.et; };
+  out.push(d, el('span', 'csep-t', '〜'), e, ts, el('span', 'csep-t', '〜'), te, el('span', 'csep'));
   for (const [c, name] of Object.entries(COLORS)) {
     const b = el('button', 'cdot' + (c === comp.color ? ' on' : '')); b.style.background = swatch(c); b.setAttribute('aria-label', '色: ' + name);
     b.onclick = () => { comp.color = c; paintComposer(); cText.focus(); };
@@ -823,7 +876,7 @@ function addFromComposer() {
   const l = curList();
   // added to the top: keep the typed order by placing the last line first
   for (const text of S.addTop ? [...lines].reverse() : lines)
-    S.items.push({ id: uid(), list: l.id, sec: comp.sec, text, done: false, doneAt: 0, trash: false, color: comp.color, memo: '', order: nextOrder(comp.sec), prio: '', doing: false, date: comp.date, end: comp.end });
+    S.items.push({ id: uid(), list: l.id, sec: comp.sec, text, done: false, doneAt: 0, trash: false, color: comp.color, memo: '', order: nextOrder(comp.sec), prio: '', doing: false, date: comp.date, end: comp.end, ...timeRange(comp.st, comp.et) });
   S.lastSec[l.id] = comp.sec; delete S.collapsed[comp.sec];
   cText.value = ''; autosize(cText); $('cSend').disabled = true;
   commit();
@@ -935,7 +988,7 @@ const onPress = e => {
 mainEl.addEventListener('pointerdown', onPress);
 $('main2').addEventListener('pointerdown', onPress);
 $('main2').addEventListener('contextmenu', e => { if (e.target.closest('.item')) e.preventDefault(); });
-addEventListener('touchmove', e => { if (drag || calSel || calMove) e.preventDefault(); }, { passive: false });
+addEventListener('touchmove', e => { if (drag || calSel || calMove || calTime) e.preventDefault(); }, { passive: false });
 mainEl.addEventListener('contextmenu', e => { if (e.target.closest('.item')) e.preventDefault(); });
 let swipe = null;
 mainEl.addEventListener('touchstart', e => { const t = e.touches[0]; swipe = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null; }, { passive: true });
@@ -1027,10 +1080,10 @@ const holidayOf = key => holidays(+key.slice(0, 4))[key] || '';
 function calEvents() {
   const out = [];
   for (const it of S.items) if (it.date && !it.trash && !S.calHide[it.list])
-    out.push({ s: it.date, e: it.end || it.date, text: it.text, it, color: listColor(it.list) });
+    out.push({ s: it.date, e: it.end || it.date, st: it.st, et: it.et, text: it.text, it, color: listColor(it.list) });
   if (!S.calHide.tree) for (const t of treeTasks()) if (t.date) out.push({ s: t.date, e: t.end || t.date, text: t.text, tree: true, color: TREE_COLOR });
   // earlier first, longer first, then unfinished and higher priority
-  return out.sort((a, b) => a.s.localeCompare(b.s) || b.e.localeCompare(a.e)
+  return out.sort((a, b) => a.s.localeCompare(b.s) || b.e.localeCompare(a.e) || (a.st || '').localeCompare(b.st || '')
     || (a.it ? +a.it.done : 0) - (b.it ? +b.it.done : 0) || prioRank(a) - prioRank(b));
 }
 function renderCalFilter() {
@@ -1064,7 +1117,7 @@ function renderCal() {
   const rows = [];
   for (let w = 0; w < weeks; w++) {
     const days = [...Array(7)].map((_, i) => addDays(start, w * 7 + i));
-    const wk = el('div', 'cweek' + (week ? ' full' : '')), bg = el('div', 'cwbg'), fg = el('div', 'cwfg');
+    const wk = el('div', 'cweek'), bg = el('div', 'cwbg'), fg = el('div', 'cwfg');
     for (const key of days) {
       const d = dateOf(key), wd = d.getDay(), hol = holidayOf(key);
       const c = el('div', 'cday' + (!week && d.getMonth() !== m ? ' out' : '') + (key === today ? ' today' : ''));
@@ -1077,7 +1130,7 @@ function renderCal() {
     // lay the week's tasks into lanes; what does not fit is counted per day
     const lanes = [], hidden = Array(7).fill(0);
     for (const e of calEvs) {
-      if (e.e < days[0] || e.s > days[6]) continue;
+      if (e.e < days[0] || e.s > days[6] || (week && isTimed(e))) continue;
       const a = e.s < days[0] ? 0 : days.indexOf(e.s), b = e.e > days[6] ? 6 : days.indexOf(e.e);
       let lane = 0;
       while (lanes[lane] && lanes[lane].slice(a, b + 1).some(Boolean)) lane++;
@@ -1088,7 +1141,7 @@ function renderCal() {
       v.style.setProperty('--ec', e.color);
       v.style.gridColumn = `${a + 1} / ${b + 2}`; v.style.gridRow = lane + 1;
       if (e.it && e.it.prio === 'high') v.append(el('b', 'bang', '!'));
-      v.append(el('span', '', e.text));
+      v.append(el('span', '', (e.st && e.s === e.e ? e.st + ' ' : '') + e.text));
       v.title = (e.it ? listName(e.it.list) : 'TODO Tree') + '：' + e.text + (e.s !== e.e ? `（${dateText(e.s)}〜${dateText(e.e)}）` : '');
       if (e.it) v.dataset.id = e.it.id;
       fg.append(v);
@@ -1101,8 +1154,53 @@ function renderCal() {
     });
     wk.append(bg, fg); rows.push(wk);
   }
-  $('calGrid').replaceChildren(...rows);
+  $('calGrid').classList.toggle('weekmode', week);
+  $('calPane').classList.toggle('weekmode', week);
+  if (!week) return $('calGrid').replaceChildren(...rows);
+  const days = [...Array(7)].map((_, i) => addDays(start, i));
+  const top = el('div', 'wk-top'); top.append(el('div', 'wk-gut', '終日'), rows[0]);
+  const scroller = el('div', 'wk-time'), grid = el('div', 'wk-grid'), hours = el('div');
+  for (let h = 0; h < 24; h++) hours.append(el('div', 'wk-h', `${h}:00`));
+  grid.append(hours);
+  const H = calHour();
+  for (const key of days) {
+    const col = el('div', 'tcol' + (key === today ? ' today' : '')); col.dataset.day = key;
+    // side by side where times overlap
+    const evs = calEvs.filter(e => isTimed(e) && e.s === key).sort((a, b) => toMin(a.st) - toMin(b.st) || toMin(b.et) - toMin(a.et));
+    let group = [], groupEnd = -1;
+    const flush = () => {
+      const cols = [];
+      for (const e of group) { let c = 0; while (cols[c] > toMin(e.st)) c++; cols[c] = toMin(e.et); e.col = c; }
+      for (const e of group) e.ncol = cols.length;
+      group = [];
+    };
+    for (const e of evs) { if (toMin(e.st) >= groupEnd) { flush(); groupEnd = -1; } group.push(e); groupEnd = Math.max(groupEnd, toMin(e.et)); }
+    flush();
+    for (const e of evs) {
+      const v = el('div', 'tev' + (e.it && e.it.done ? ' done' : ''));
+      v.style.setProperty('--ec', e.color);
+      v.style.top = toMin(e.st) / 60 * H + 'px';
+      v.style.height = Math.max(18, (toMin(e.et) - toMin(e.st)) / 60 * H - 2) + 'px';
+      v.style.left = `calc(${e.col / e.ncol * 100}% + 1px)`; v.style.width = `calc(${100 / e.ncol}% - 2px)`;
+      if (e.it && e.it.prio === 'high') v.append(el('b', 'bang', '! '));
+      v.append(document.createTextNode(e.text), el('small', '', `${e.st}-${e.et}`));
+      v.title = `${e.st}-${e.et} ${e.text}`;
+      if (e.it) { v.dataset.id = e.it.id; v.append(el('div', 'tres')); }
+      col.append(v);
+    }
+    if (key === today) { const n = new Date(), now = el('div', 'tnow'); now.style.top = (n.getHours() * 60 + n.getMinutes()) / 60 * H + 'px'; col.append(now); }
+    grid.append(col);
+  }
+  scroller.append(grid);
+  // keep the scroll across redraws; the first time, start at 8:00
+  const prev = $('calGrid').querySelector('.wk-time');
+  const y0 = prev ? prev.scrollTop : 8 * H;
+  $('calGrid').replaceChildren(top, scroller);
+  scroller.scrollTop = y0;
 }
+// a task shows on the hourly grid when it has a time and falls on one day
+const isTimed = e => !!e.st && e.s === e.e;
+const calHour = () => document.body.classList.contains('cal-full') ? 44 : 48;
 function dayList(key) {
   openSheet(dateText(key) + (holidayOf(key) ? ' ' + holidayOf(key) : ''), box => {
     for (const e of calEvs.filter(e => e.s <= key && e.e >= key)) {
@@ -1125,9 +1223,10 @@ function markDays(a, b) {
 }
 // Press a day to add a task on it; sweep across days (on a phone: hold, then sweep) to add one for that stretch.
 // Drag a task to another day to move it, keeping its length. A tap on a task opens it.
-let calSel = null, calMove = null;
+let calSel = null, calMove = null, calTime = null;
 $('calGrid').addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (e.target.closest('.wk-time')) return timePointer(e);
   const more = e.target.closest('.ev.more');
   if (more) return dayList(more.dataset.more);
   const ev = e.target.closest('.ev'), day = dayAt(e.clientX, e.clientY);
@@ -1183,6 +1282,72 @@ $('calGrid').addEventListener('pointerdown', e => {
   };
   addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', stop);
 });
+// The hourly grid: sweep down a day (on a phone: hold first) to add a task for that time; drag a task to move it
+// to another time or day, or its bottom edge to change when it ends. Times snap to 30 minutes.
+function timePointer(e) {
+  const col0 = e.target.closest('.tcol'); if (!col0) return;
+  const tev = e.target.closest('.tev'), it = tev && findItem(tev.dataset.id);
+  if (tev && !it) return;
+  const H = calHour(), pid = e.pointerId, sx = e.clientX, sy = e.clientY, mouse = e.pointerType === 'mouse';
+  const resize = !!e.target.closest('.tres');
+  const minAt = (col, y) => Math.max(0, Math.min(1440, (y - col.getBoundingClientRect().top) / H * 60));
+  const colAt = x => [...$('calGrid').querySelectorAll('.tcol')].find(c => { const b = c.getBoundingClientRect(); return x >= b.left && x < b.right; });
+  const from = Math.min(1410, Math.floor(minAt(col0, sy) / 30) * 30);
+  let ghost = null;
+  const paint = () => {
+    const t = calTime, c = $('calGrid').querySelector(`.tcol[data-day="${t.day}"]`); if (!c) return;
+    ghost = ghost || el('div', 'tsel'); c.append(ghost);
+    ghost.style.top = t.a / 60 * H + 'px'; ghost.style.height = (t.b - t.a) / 60 * H + 'px';
+    ghost.textContent = `${fromMin(t.a)}-${fromMin(t.b)}`;
+  };
+  const begin = () => {
+    if (it) { calTime = { mode: resize ? 'resize' : 'move', it, day: it.date, a: toMin(it.st), b: toMin(it.et), grab: minAt(col0, sy) - toMin(it.st) }; tev.classList.add('moving'); }
+    else calTime = { mode: 'new', day: col0.dataset.day, a: from, b: from + 30 };
+    if (!mouse && navigator.vibrate) navigator.vibrate(10);
+    paint();
+  };
+  let timer = 0;
+  if (!mouse) timer = setTimeout(() => { timer = 0; begin(); }, 350);
+  else if (!it) begin();
+  const move = m => {
+    if (m.pointerId !== pid) return;
+    const far = Math.hypot(m.clientX - sx, m.clientY - sy) > 6;
+    if (!calTime) {
+      if (mouse && it && far) begin();
+      else { if (timer && far) stop(); return; }
+    }
+    const t = calTime;
+    if (t.mode === 'new') {
+      const at = minAt(col0, m.clientY);
+      t.a = Math.min(from, Math.floor(at / 30) * 30); t.b = Math.max(from + 30, Math.ceil(at / 30) * 30);
+    } else if (t.mode === 'resize') {
+      t.b = Math.max(t.a + 30, Math.min(1440, Math.ceil(minAt(col0, m.clientY) / 30) * 30));
+    } else {
+      const c = colAt(m.clientX) || col0, len = t.b - t.a;
+      t.day = c.dataset.day;
+      t.a = Math.max(0, Math.min(1440 - len, Math.round((minAt(c, m.clientY) - t.grab) / 30) * 30)); t.b = t.a + len;
+    }
+    paint();
+  };
+  const up = u => {
+    if (u.pointerId !== pid) return;
+    const t = calTime, tap = !t;
+    stop();
+    if (tap) return it ? editItem(it.id) : openComposer(col0.dataset.day, '', fromMin(from), fromMin(Math.min(1440, from + 60)));
+    if (t.mode === 'new') return openComposer(t.day, '', fromMin(t.a), fromMin(t.b));
+    const same = t.day === t.it.date && fromMin(t.a) === t.it.st && fromMin(t.b) === t.it.et;
+    if (same) { if (mouse && t.mode === 'move') editItem(t.it.id); return; }
+    Object.assign(t.it, { date: t.day, end: '', st: fromMin(t.a), et: fromMin(t.b) });
+    commit(); toast(`${dateText(t.day)} ${t.it.st}-${t.it.et} に${t.mode === 'resize' ? '変更' : '移動'}しました`);
+  };
+  const stop = () => {
+    clearTimeout(timer); timer = 0; calTime = null;
+    if (ghost) ghost.remove();
+    if (tev) tev.classList.remove('moving');
+    removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', stop);
+  };
+  addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', stop);
+}
 // ‹ › step a month or a week; the month follows the week so switching views stays near the same days
 function calStep(n) {
   if (S.calView === 'week') { calWeek = addDays(calWeek, 7 * n); const d = dateOf(addDays(calWeek, 3)); calMonth = new Date(d.getFullYear(), d.getMonth(), 1); }
@@ -1222,7 +1387,7 @@ const CLIENT = uid();
 const sync = { ref: null, ready: false, writing: false, queued: false, lastSent: null, pending: null, pendingBase: null, timer: 0, state: 'off', text: 'この端末のみ' };
 const contentOf = s => JSON.stringify({
   lists: s.lists.map(({ id, name, sections }) => ({ id, name, sections: sections.map(({ id, name }) => ({ id, name })) })),
-  items: s.items.map(({ id, list, sec, text, done, doneAt, trash, color, memo, order, prio, doing, date, end }) => ({ id, list, sec, text, done, doneAt, trash, color, memo, order, prio, doing, date, end }))
+  items: s.items.map(({ id, list, sec, text, done, doneAt, trash, color, memo, order, prio, doing, date, end, st, et }) => ({ id, list, sec, text, done, doneAt, trash, color, memo, order, prio, doing, date, end, st, et }))
 });
 function setSync(state, text) { sync.state = state; sync.text = text; paintSync(); }
 function paintSync() {
