@@ -1079,7 +1079,8 @@ const holidayOf = key => holidays(+key.slice(0, 4))[key] || '';
 
 function calEvents() {
   const out = [];
-  for (const it of S.items) if (it.date && !it.trash && !S.calHide[it.list])
+  // tasks in the bin stay on the calendar (shown as finished) until they are deleted from the bin
+  for (const it of S.items) if (it.date && !S.calHide[it.list])
     out.push({ s: it.date, e: it.end || it.date, st: it.st, et: it.et, text: it.text, it, color: listColor(it.list) });
   if (!S.calHide.tree) for (const t of treeTasks()) if (t.date) out.push({ s: t.date, e: t.end || t.date, text: t.text, tree: true, color: TREE_COLOR });
   // earlier first, longer first, then unfinished and higher priority
@@ -1136,7 +1137,7 @@ function renderCal() {
       while (lanes[lane] && lanes[lane].slice(a, b + 1).some(Boolean)) lane++;
       if (lane >= MAX) { for (let i = a; i <= b; i++) hidden[i]++; continue; }
       (lanes[lane] = lanes[lane] || Array(7).fill(false)).fill(true, a, b + 1);
-      const v = el('div', 'ev' + (e.s !== e.e ? ' bar' : '') + (e.tree ? ' tree' : '') + (e.it && e.it.done ? ' done' : '')
+      const v = el('div', 'ev' + (e.s !== e.e ? ' bar' : '') + (e.tree ? ' tree' : '') + (e.it && (e.it.done || e.it.trash) ? ' done' : '')
         + (e.s < days[0] ? ' cont-l' : '') + (e.e > days[6] ? ' cont-r' : ''));
       v.style.setProperty('--ec', e.color);
       v.style.gridColumn = `${a + 1} / ${b + 2}`; v.style.gridRow = lane + 1;
@@ -1177,7 +1178,7 @@ function renderCal() {
     for (const e of evs) { if (toMin(e.st) >= groupEnd) { flush(); groupEnd = -1; } group.push(e); groupEnd = Math.max(groupEnd, toMin(e.et)); }
     flush();
     for (const e of evs) {
-      const v = el('div', 'tev' + (e.it && e.it.done ? ' done' : ''));
+      const v = el('div', 'tev' + (e.it && (e.it.done || e.it.trash) ? ' done' : ''));
       v.style.setProperty('--ec', e.color);
       v.style.top = toMin(e.st) / 60 * H + 'px';
       v.style.height = Math.max(18, (toMin(e.et) - toMin(e.st)) / 60 * H - 2) + 'px';
